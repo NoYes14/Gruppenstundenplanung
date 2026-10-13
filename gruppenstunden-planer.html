@@ -1,0 +1,477 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HLF Gruppenstunden-Planer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --accent: #A8443A;
+    --ink: #22201E;
+    --muted: #6B6560;
+    --line: #D9D0C6;
+    --line-strong: #CFC7BE;
+    --soft: #F6F1EC;
+    --bg: #EFEBE6;
+    --panel: #FFFFFF;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: 'Source Sans 3', system-ui, sans-serif;
+    font-size: 15px;
+  }
+  h1, h2, h3 { font-family: 'Bricolage Grotesque', sans-serif; }
+
+  /* ---------- Kopfleiste ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 10;
+    display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+    padding: 12px 20px;
+    background: rgba(255,255,255,0.92);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; flex-direction: column; }
+  .brand small { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .brand strong { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  button, .btn {
+    font: inherit; font-weight: 600; font-size: 14px;
+    min-height: 40px; padding: 0 16px;
+    border-radius: 10px; border: 1px solid var(--line-strong);
+    background: #fff; color: var(--ink); cursor: pointer;
+  }
+  button:hover { background: var(--soft); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  button.primary:hover { filter: brightness(0.92); background: var(--accent); }
+  button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+
+  /* ---------- Layout ---------- */
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(340px, 460px) 1fr;
+    gap: 24px; padding: 24px; align-items: start;
+  }
+  @media (max-width: 960px) { .layout { grid-template-columns: 1fr; padding: 16px; } }
+
+  .editor { display: flex; flex-direction: column; gap: 16px; }
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px 18px;
+    display: flex; flex-direction: column; gap: 12px;
+  }
+  .card h2 { margin: 0; font-size: 17px; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  input, textarea, select {
+    font: inherit; font-size: 15px; text-transform: none; letter-spacing: 0; font-weight: 400;
+    color: var(--ink); background: #fff;
+    border: 1px solid var(--line-strong); border-radius: 8px;
+    padding: 9px 11px; width: 100%;
+  }
+  textarea { resize: vertical; min-height: 64px; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  .hint { font-size: 13px; color: var(--muted); margin: 0; }
+
+  .rows { display: flex; flex-direction: column; gap: 10px; }
+  .row {
+    border: 1px solid var(--line); border-radius: 10px; padding: 12px;
+    display: flex; flex-direction: column; gap: 8px; background: var(--soft);
+  }
+  .row-head { display: grid; grid-template-columns: 80px 1fr auto; gap: 8px; align-items: center; }
+  .row-tools { display: flex; gap: 4px; }
+  .row-tools button { min-height: 36px; min-width: 36px; padding: 0 8px; font-size: 15px; }
+  .total { display: flex; justify-content: space-between; align-items: center; font-size: 14px; color: var(--muted); }
+  .total b { color: var(--ink); }
+  .total.warn b { color: var(--accent); }
+
+  .swatches { display: flex; gap: 10px; }
+  .swatch { width: 40px; height: 40px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line-strong); padding: 0; }
+  .swatch[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ink); }
+
+  /* ---------- Vorschau ---------- */
+  .preview-col { position: sticky; top: 88px; }
+  .preview-label { font-size: 12px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); margin: 0 0 10px; }
+  .preview-frame { width: 100%; overflow: hidden; }
+  .preview-scale { transform-origin: top left; width: 794px; }
+  @media (max-width: 960px) { .preview-col { position: static; } }
+
+  /* ---------- Das A4-Blatt ---------- */
+  .sheet {
+    width: 794px; min-height: 1123px;
+    background: #fff; color: var(--ink);
+    padding: 44px 48px;
+    display: flex; flex-direction: column; gap: 18px;
+    box-shadow: 0 10px 40px rgba(34,32,30,.12);
+    font-size: 14px;
+  }
+  .s-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; padding-bottom: 14px; border-bottom: 2px solid var(--accent); }
+  .s-kicker { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .s-title { margin: 4px 0 0; font-size: 40px; line-height: 1.05; font-weight: 700; letter-spacing: -.01em; }
+  .s-nr { display: flex; align-items: center; gap: 10px; }
+  .s-nr div:last-child { min-width: 64px; height: 40px; border: 1px solid var(--line-strong); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; font-weight: 700; padding: 0 10px; }
+  .s-lbl { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .s-meta { display: grid; grid-template-columns: repeat(4, minmax(0,1fr)); gap: 16px; }
+  .s-field { display: flex; flex-direction: column; gap: 6px; }
+  .s-val { min-height: 26px; border-bottom: 1px solid var(--line-strong); font-size: 15px; padding-bottom: 3px; }
+  .s-two { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; }
+  .s-box { background: var(--soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .s-box h3, .s-card h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .s-text { white-space: pre-line; line-height: 1.45; min-height: 44px; }
+  .s-lines { display: flex; flex-direction: column; gap: 8px; }
+  .s-lines span { display: block; height: 20px; border-bottom: 1px solid var(--line); }
+  .s-sec { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .s-sec h2 { margin: 0; font-size: 20px; font-weight: 700; }
+  .s-sec small { font-size: 12px; color: var(--muted); }
+  .s-table { border: 1px solid var(--line-strong); border-radius: 12px; overflow: hidden; }
+  .s-tr { display: grid; grid-template-columns: 76px 150px 1fr 130px 76px; min-height: 50px; border-top: 1px solid #DED6CD; }
+  .s-tr:first-child { border-top: 0; }
+  .s-tr > div { padding: 8px 10px; border-left: 1px solid #DED6CD; line-height: 1.35; white-space: pre-line; }
+  .s-tr > div:first-child { border-left: 0; }
+  .s-th { min-height: 0; background: var(--soft); }
+  .s-th > div { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .s-time { font-size: 13px; color: var(--muted); }
+  .s-time b { display: block; color: var(--ink); font-weight: 600; }
+  .s-phase { font-weight: 600; color: var(--accent); }
+  .s-card { border: 1px solid var(--line-strong); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 9px; }
+  .s-check { display: flex; align-items: center; gap: 10px; min-height: 22px; border-bottom: 1px solid var(--line); padding-bottom: 3px; }
+  .s-check i { width: 14px; height: 14px; border: 1.5px solid #8F867D; border-radius: 4px; flex-shrink: 0; }
+  .s-stats { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .s-stat { background: var(--soft); border-radius: 10px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; }
+  .s-stat b { font-family: 'Bricolage Grotesque', sans-serif; font-size: 22px; min-height: 28px; }
+  .s-review { flex-grow: 1; }
+  .s-three { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
+  .s-three h4 { margin: 0 0 6px; font-size: 13px; color: var(--accent); }
+  .s-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+
+  /* ---------- Druck / PDF ---------- */
+  @page { size: A4; margin: 0; }
+  @media print {
+    body { background: #fff; }
+    .topbar, .editor, .preview-label { display: none !important; }
+    .layout { display: block; padding: 0; }
+    .preview-col { position: static; }
+    .preview-frame { overflow: visible; height: auto !important; }
+    .preview-scale { transform: none !important; }
+    .sheet { box-shadow: none; width: 210mm; min-height: 297mm; }
+    * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="brand">
+    <small>Kinderfeuerwehr · HLF-Gruppe</small>
+    <strong>Gruppenstunden-Planer</strong>
+  </div>
+  <div class="actions">
+    <button type="button" class="ghost" id="btn-new">Neu</button>
+    <button type="button" id="btn-save">Speichern (.json)</button>
+    <button type="button" id="btn-load">Öffnen</button>
+    <input type="file" id="file-load" accept="application/json" hidden>
+    <button type="button" class="primary" id="btn-pdf">Als PDF exportieren</button>
+  </div>
+</header>
+
+<main class="layout">
+  <!-- ===== Formular ===== -->
+  <section class="editor" aria-label="Eingabe">
+    <div class="card">
+      <h2>Eckdaten</h2>
+      <div class="grid2">
+        <label>Stunde Nr.<input data-k="nr" inputmode="numeric"></label>
+        <label>Datum<input type="date" data-k="datum"></label>
+        <label>Beginn<input type="time" data-k="uhrzeit"></label>
+        <label>Ort<input data-k="ort"></label>
+      </div>
+      <label>Betreuer<input data-k="betreuer" placeholder="z. B. Jannik, Lisa"></label>
+    </div>
+
+    <div class="card">
+      <h2>Thema &amp; Ziel</h2>
+      <label>Thema<textarea data-k="thema" rows="2"></textarea></label>
+      <label>Ziel – das nehmen die Kinder mit<textarea data-k="ziel" rows="2"></textarea></label>
+    </div>
+
+    <div class="card">
+      <h2>Ablauf</h2>
+      <p class="hint">Dauer in Minuten. Mit Beginn-Uhrzeit werden die Startzeiten automatisch berechnet.</p>
+      <div class="rows" id="rows"></div>
+      <button type="button" id="btn-add-row">+ Programmpunkt hinzufügen</button>
+      <div class="total" id="total"></div>
+    </div>
+
+    <div class="card">
+      <h2>Material &amp; Organisation</h2>
+      <label>Material (eine Zeile pro Teil)<textarea data-k="material" rows="4"></textarea></label>
+      <div class="grid2">
+        <label>Kinder angemeldet<input data-k="kinder" inputmode="numeric"></label>
+        <label>Betreuer da<input data-k="betreuerAnz" inputmode="numeric"></label>
+      </div>
+      <label>Infos an Eltern / Hinweise<textarea data-k="hinweise" rows="2"></textarea></label>
+    </div>
+
+    <div class="card">
+      <h2>Rückblick</h2>
+      <p class="hint">Leer lassen, um es nach der Stunde von Hand auszufüllen.</p>
+      <label>Das lief gut<textarea data-k="gut" rows="2"></textarea></label>
+      <label>Beim nächsten Mal anders<textarea data-k="anders" rows="2"></textarea></label>
+      <label>Wünsche der Kinder<textarea data-k="wuensche" rows="2"></textarea></label>
+    </div>
+
+    <div class="card">
+      <h2>Farbe</h2>
+      <div class="swatches" id="swatches"></div>
+    </div>
+  </section>
+
+  <!-- ===== Vorschau ===== -->
+  <section class="preview-col" aria-label="Vorschau">
+    <p class="preview-label">Vorschau · A4</p>
+    <div class="preview-frame" id="frame">
+      <div class="preview-scale" id="scale">
+        <article class="sheet" id="sheet"></article>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+(function () {
+  const STORE = 'hlf-planer-v1';
+  const COLORS = [
+    { name: 'Feuerwehrrot', hex: '#A8443A' },
+    { name: 'Blau', hex: '#2F5D7C' },
+    { name: 'Grün', hex: '#3E6B4F' },
+    { name: 'Grau', hex: '#4A4540' }
+  ];
+
+  function blank() {
+    return {
+      nr: '', datum: '', uhrzeit: '', ort: '', betreuer: '',
+      thema: '', ziel: '', material: '', kinder: '', betreuerAnz: '', hinweise: '',
+      gut: '', anders: '', wuensche: '', accent: COLORS[0].hex,
+      rows: [
+        { dauer: 10, titel: 'Begrüßung', text: '', mat: '', wer: '' },
+        { dauer: 15, titel: 'Warm-up', text: '', mat: '', wer: '' },
+        { dauer: 25, titel: 'Hauptteil', text: '', mat: '', wer: '' },
+        { dauer: 10, titel: 'Pause', text: '', mat: '', wer: '' },
+        { dauer: 20, titel: 'Spiel & Bewegung', text: '', mat: '', wer: '' },
+        { dauer: 10, titel: 'Abschluss', text: '', mat: '', wer: '' }
+      ]
+    };
+  }
+
+  let state;
+  try { state = JSON.parse(localStorage.getItem(STORE)) || blank(); } catch (e) { state = blank(); }
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+
+  function fmtDate(iso) {
+    if (!iso) return '';
+    const d = new Date(iso + 'T12:00:00');
+    return d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+  }
+  function addMin(hhmm, m) {
+    const [h, mi] = hhmm.split(':').map(Number);
+    const t = (h * 60 + mi + m) % 1440;
+    return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
+  }
+  const totalMin = () => state.rows.reduce((a, r) => a + (Number(r.dauer) || 0), 0);
+
+  /* ---------- Formular-Felder ---------- */
+  document.querySelectorAll('[data-k]').forEach(el => {
+    el.value = state[el.dataset.k] ?? '';
+    el.addEventListener('input', () => { state[el.dataset.k] = el.value; update(); });
+  });
+
+  /* ---------- Ablauf-Zeilen ---------- */
+  const rowsEl = document.getElementById('rows');
+  function renderRows() {
+    rowsEl.innerHTML = '';
+    state.rows.forEach((r, i) => {
+      const box = document.createElement('div');
+      box.className = 'row';
+      box.innerHTML = `
+        <div class="row-head">
+          <label>Min.<input type="number" min="0" step="5" data-f="dauer" value="${esc(r.dauer)}"></label>
+          <label>Programmpunkt<input data-f="titel" value="${esc(r.titel)}"></label>
+          <div class="row-tools">
+            <button type="button" data-a="up" aria-label="Nach oben">↑</button>
+            <button type="button" data-a="down" aria-label="Nach unten">↓</button>
+            <button type="button" data-a="del" aria-label="Entfernen">×</button>
+          </div>
+        </div>
+        <label>Beschreibung<textarea rows="2" data-f="text">${esc(r.text)}</textarea></label>
+        <div class="grid2">
+          <label>Material<input data-f="mat" value="${esc(r.mat)}"></label>
+          <label>Wer<input data-f="wer" value="${esc(r.wer)}"></label>
+        </div>`;
+      box.querySelectorAll('[data-f]').forEach(inp => {
+        inp.addEventListener('input', () => { r[inp.dataset.f] = inp.value; update(); });
+      });
+      box.querySelectorAll('[data-a]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const a = btn.dataset.a;
+          if (a === 'del') state.rows.splice(i, 1);
+          if (a === 'up' && i > 0) [state.rows[i - 1], state.rows[i]] = [state.rows[i], state.rows[i - 1]];
+          if (a === 'down' && i < state.rows.length - 1) [state.rows[i + 1], state.rows[i]] = [state.rows[i], state.rows[i + 1]];
+          renderRows(); update();
+        });
+      });
+      rowsEl.appendChild(box);
+    });
+  }
+  document.getElementById('btn-add-row').addEventListener('click', () => {
+    state.rows.push({ dauer: 10, titel: '', text: '', mat: '', wer: '' });
+    renderRows(); update();
+  });
+
+  /* ---------- Farben ---------- */
+  const sw = document.getElementById('swatches');
+  function renderSwatches() {
+    sw.innerHTML = '';
+    COLORS.forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'swatch';
+      b.style.background = c.hex;
+      b.setAttribute('aria-label', c.name);
+      b.setAttribute('aria-pressed', String(state.accent === c.hex));
+      b.addEventListener('click', () => { state.accent = c.hex; renderSwatches(); update(); });
+      sw.appendChild(b);
+    });
+  }
+
+  /* ---------- Blatt rendern ---------- */
+  function lines(n) { return '<div class="s-lines">' + '<span></span>'.repeat(n) + '</div>'; }
+  function textOr(v, n) { return v.trim() ? `<div class="s-text">${esc(v)}</div>` : lines(n); }
+
+  function renderSheet() {
+    let clock = state.uhrzeit;
+    const rows = state.rows.map(r => {
+      const start = clock ? `<b>${clock}</b>` : '';
+      if (clock) clock = addMin(clock, Number(r.dauer) || 0);
+      return `<div class="s-tr">
+        <div class="s-time">${start}${esc(r.dauer)} Min.</div>
+        <div class="s-phase">${esc(r.titel)}</div>
+        <div>${esc(r.text)}</div>
+        <div>${esc(r.mat)}</div>
+        <div>${esc(r.wer)}</div>
+      </div>`;
+    }).join('');
+
+    const mats = state.material.split('\n').map(s => s.trim()).filter(Boolean);
+    const matHtml = (mats.length ? mats : ['', '', '', '']).map(m => `<div class="s-check"><i></i>${esc(m)}</div>`).join('')
+      + (mats.length && mats.length < 5 ? '<div class="s-check"><i></i></div>' : '');
+
+    const reviewCol = (t, v) => `<div><h4>${t}</h4>${textOr(v, 2)}</div>`;
+
+    document.getElementById('sheet').innerHTML = `
+      <div class="s-head">
+        <div><div class="s-kicker">Kinderfeuerwehr · HLF-Gruppe</div><h1 class="s-title">Gruppenstunde</h1></div>
+        <div class="s-nr"><div class="s-lbl">Nr.</div><div>${esc(state.nr)}</div></div>
+      </div>
+      <div class="s-meta">
+        <div class="s-field"><div class="s-lbl">Datum</div><div class="s-val">${esc(fmtDate(state.datum))}</div></div>
+        <div class="s-field"><div class="s-lbl">Uhrzeit</div><div class="s-val">${state.uhrzeit ? esc(state.uhrzeit + ' – ' + addMin(state.uhrzeit, totalMin()) + ' Uhr') : ''}</div></div>
+        <div class="s-field"><div class="s-lbl">Ort</div><div class="s-val">${esc(state.ort)}</div></div>
+        <div class="s-field"><div class="s-lbl">Betreuer</div><div class="s-val">${esc(state.betreuer)}</div></div>
+      </div>
+      <div class="s-two">
+        <div class="s-box"><h3>Thema</h3>${textOr(state.thema, 2)}</div>
+        <div class="s-box"><h3>Ziel – das nehmen die Kinder mit</h3>${textOr(state.ziel, 2)}</div>
+      </div>
+      <div>
+        <div class="s-sec"><h2>Ablauf</h2><small>Gesamtdauer: ${totalMin()} Min.</small></div>
+        <div class="s-table">
+          <div class="s-tr s-th"><div>Zeit</div><div>Programmpunkt</div><div>Beschreibung</div><div>Material</div><div>Wer</div></div>
+          ${rows}
+        </div>
+      </div>
+      <div class="s-two">
+        <div class="s-card"><h3>Material-Checkliste</h3>${matHtml}</div>
+        <div class="s-card">
+          <h3>Gruppe &amp; Organisatorisches</h3>
+          <div class="s-stats">
+            <div class="s-stat"><div class="s-lbl">Kinder</div><b>${esc(state.kinder)}</b></div>
+            <div class="s-stat"><div class="s-lbl">Betreuer da</div><b>${esc(state.betreuerAnz)}</b></div>
+          </div>
+          <div class="s-lbl">Infos an Eltern / Hinweise</div>
+          ${textOr(state.hinweise, 2)}
+        </div>
+      </div>
+      <div class="s-box s-review">
+        <h3>Rückblick nach der Stunde</h3>
+        <div class="s-three">
+          ${reviewCol('Das lief gut', state.gut)}
+          ${reviewCol('Beim nächsten Mal anders', state.anders)}
+          ${reviewCol('Wünsche der Kinder', state.wuensche)}
+        </div>
+      </div>
+      <div class="s-foot"><span>Kinderfeuerwehr · HLF-Gruppe</span><span>${esc(fmtDate(state.datum))}</span></div>`;
+  }
+
+  /* ---------- Vorschau skalieren ---------- */
+  const frame = document.getElementById('frame');
+  const scale = document.getElementById('scale');
+  function fit() {
+    const s = Math.min(1, frame.clientWidth / 794);
+    scale.style.transform = `scale(${s})`;
+    frame.style.height = (scale.offsetHeight * s) + 'px';
+  }
+  window.addEventListener('resize', fit);
+
+  function update() {
+    document.documentElement.style.setProperty('--accent', state.accent);
+    const t = totalMin();
+    const tot = document.getElementById('total');
+    tot.className = 'total' + (t !== 90 ? ' warn' : '');
+    tot.innerHTML = `<span>Gesamt</span><b>${t} von 90 Min.</b>`;
+    renderSheet(); fit(); persist();
+  }
+
+  /* ---------- Aktionen ---------- */
+  document.getElementById('btn-pdf').addEventListener('click', () => {
+    const old = document.title;
+    document.title = 'Gruppenstunde' + (state.nr ? ' ' + state.nr : '') + (state.datum ? ' ' + state.datum : '');
+    window.print();
+    document.title = old;
+  });
+  document.getElementById('btn-new').addEventListener('click', () => {
+    if (!confirm('Neuen leeren Plan beginnen? Nicht gespeicherte Eingaben gehen verloren.')) return;
+    state = blank(); loadIntoForm();
+  });
+  document.getElementById('btn-save').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gruppenstunde' + (state.nr ? '-' + state.nr : '') + '.json';
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+  const fileIn = document.getElementById('file-load');
+  document.getElementById('btn-load').addEventListener('click', () => fileIn.click());
+  fileIn.addEventListener('change', async () => {
+    const f = fileIn.files[0]; if (!f) return;
+    try { state = Object.assign(blank(), JSON.parse(await f.text())); loadIntoForm(); }
+    catch (e) { alert('Die Datei konnte nicht gelesen werden.'); }
+    fileIn.value = '';
+  });
+
+  function loadIntoForm() {
+    document.querySelectorAll('[data-k]').forEach(el => { el.value = state[el.dataset.k] ?? ''; });
+    renderRows(); renderSwatches(); update();
+  }
+
+  document.fonts && document.fonts.ready.then(fit);
+  loadIntoForm();
+})();
+</script>
+</body>
+</html>
