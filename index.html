@@ -117,6 +117,16 @@
   .icon-btn:hover { background: var(--bg); }
   .icon-btn:disabled { opacity: .35; cursor: default; }
   .icon-btn svg { width: 18px; height: 18px; }
+  .take-btn { width: auto; padding: 0 12px; gap: 6px; font: inherit; font-size: 14px; font-weight: 600; color: var(--accent); }
+  @media (max-width: 520px) { .take-btn span { display: none; } .take-btn { width: 40px; padding: 0; } }
+  .row-extra { background: #fff; border-style: dashed; border-color: var(--line-strong); }
+  .s-extra { border: 1.5px dashed var(--line-strong); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .s-extra-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .s-extra-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .s-extra-item { display: grid; grid-template-columns: 70px 150px minmax(0,1fr) 130px; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); line-height: 1.35; }
+  .s-extra-item > div { min-width: 0; overflow-wrap: anywhere; white-space: pre-line; }
+  .s-extra-item .s-check { border: 0; padding: 0; min-height: 0; align-items: flex-start; gap: 8px; }
+  .s-extra-item .s-check i { margin-top: 2px; }
 
   .total {
     padding: 14px 16px; border-radius: 12px; background: var(--soft);
@@ -272,6 +282,14 @@
   </div>
 
   <div class="card">
+    <h2>Evtl. – falls noch Zeit ist</h2>
+    <p class="hint">Ideen als Reserve. Sie zählen nicht zur verplanten Zeit und stehen im PDF in einem eigenen Bereich. Mit „Übernehmen“ verschiebst du eine Idee in den Ablauf.</p>
+    <p class="hint" id="extras-empty">Noch keine Reserve-Ideen.</p>
+    <div class="rows" id="extras"></div>
+    <button type="button" class="btn" id="btn-add-extra">+ Reserve-Idee hinzufügen</button>
+  </div>
+
+  <div class="card">
     <h2>Material &amp; Organisation</h2>
     <label>Material (eine Zeile pro Teil)<textarea data-k="material" rows="4"></textarea></label>
     <div class="grid2">
@@ -328,6 +346,7 @@
   const ICON = {
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
+    take: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
     del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>'
   };
 
@@ -336,6 +355,7 @@
       nr: '', datum: '', uhrzeit: '', laenge: '90', ort: '', betreuer: '',
       thema: '', ziel: '', material: '', kinder: '', betreuerAnz: '', hinweise: '',
       gut: '', anders: '', wuensche: '', accent: COLORS[0].hex,
+      extras: [],
       rows: [
         { dauer: 10, titel: 'Begrüßung', text: '', mat: '', wer: '' },
         { dauer: 15, titel: 'Warm-up', text: '', mat: '', wer: '' },
@@ -388,17 +408,24 @@
 
   /* ---------- Ablauf-Zeilen ---------- */
   const rowsEl = $('rows');
+  const extrasEl = $('extras');
   function renderRows() {
-    rowsEl.innerHTML = '';
-    state.rows.forEach((r, i) => {
+    renderList(rowsEl, state.rows, 'Punkt', false);
+    renderList(extrasEl, state.extras, 'Evtl.', true);
+    $('extras-empty').hidden = state.extras.length > 0;
+  }
+  function renderList(listEl, list, label, isExtra) {
+    listEl.innerHTML = '';
+    list.forEach((r, i) => {
       const box = document.createElement('div');
-      box.className = 'row';
+      box.className = 'row' + (isExtra ? ' row-extra' : '');
       box.innerHTML = `
         <div class="row-top">
-          <span class="row-num">Punkt ${i + 1}</span>
+          <span class="row-num">${label} ${i + 1}</span>
           <div class="row-tools">
+            ${isExtra ? `<button type="button" class="icon-btn take-btn" data-a="take" aria-label="In den Ablauf übernehmen">${ICON.take}<span>Übernehmen</span></button>` : ''}
             <button type="button" class="icon-btn" data-a="up" aria-label="Nach oben" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
-            <button type="button" class="icon-btn" data-a="down" aria-label="Nach unten" ${i === state.rows.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
+            <button type="button" class="icon-btn" data-a="down" aria-label="Nach unten" ${i === list.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
             <button type="button" class="icon-btn" data-a="del" aria-label="Entfernen">${ICON.del}</button>
           </div>
         </div>
@@ -418,23 +445,32 @@
         btn.addEventListener('click', () => {
           const a = btn.dataset.a;
           if (a === 'del') {
-            if ((r.titel || r.text) && !confirm('„' + (r.titel || 'Punkt ' + (i + 1)) + '“ entfernen?')) return;
-            state.rows.splice(i, 1);
+            if ((r.titel || r.text) && !confirm('„' + (r.titel || label + ' ' + (i + 1)) + '“ entfernen?')) return;
+            list.splice(i, 1);
           }
-          if (a === 'up' && i > 0) [state.rows[i - 1], state.rows[i]] = [state.rows[i], state.rows[i - 1]];
-          if (a === 'down' && i < state.rows.length - 1) [state.rows[i + 1], state.rows[i]] = [state.rows[i], state.rows[i + 1]];
+          if (a === 'up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
+          if (a === 'down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
+          if (a === 'take') {
+            // vor dem Abschluss einfügen, falls es einen gibt – sonst ans Ende
+            const moved = list.splice(i, 1)[0];
+            let at = state.rows.findIndex(x => /abschluss/i.test(x.titel || ''));
+            if (at < 0) at = state.rows.length;
+            state.rows.splice(at, 0, moved);
+          }
           renderRows(); update();
         });
       });
-      rowsEl.appendChild(box);
+      listEl.appendChild(box);
     });
   }
-  $('btn-add-row').addEventListener('click', () => {
-    state.rows.push({ dauer: 10, titel: '', text: '', mat: '', wer: '' });
+  function addAndFocus(list, listEl) {
+    list.push({ dauer: 10, titel: '', text: '', mat: '', wer: '' });
     renderRows(); update();
-    const inputs = rowsEl.querySelectorAll('[data-f="titel"]');
+    const inputs = listEl.querySelectorAll('[data-f="titel"]');
     inputs[inputs.length - 1].focus();
-  });
+  }
+  $('btn-add-row').addEventListener('click', () => addAndFocus(state.rows, rowsEl));
+  $('btn-add-extra').addEventListener('click', () => addAndFocus(state.extras, extrasEl));
 
   /* ---------- Farben ---------- */
   const sw = $('swatches');
@@ -473,6 +509,18 @@
     let matHtml = (mats.length ? mats : ['', '', '', '']).map(m => `<div class="s-check"><i></i>${esc(m)}</div>`).join('');
     if (mats.length && mats.length < 5) matHtml += '<div class="s-check"><i></i></div>';
 
+    const extras = (state.extras || []).filter(x => (x.titel || x.text || '').trim());
+    const extraHtml = extras.length ? `
+      <div class="s-extra">
+        <div class="s-extra-head"><h3>Evtl. – falls noch Zeit ist</h3><small class="s-lbl">Reserve</small></div>
+        ${extras.map(x => `<div class="s-extra-item">
+          <div class="s-time">${x.dauer ? esc(x.dauer) + ' Min.' : ''}</div>
+          <div class="s-check"><i></i><span class="s-phase">${esc(x.titel)}</span></div>
+          <div>${esc(x.text)}</div>
+          <div>${esc(x.mat)}${x.wer ? (x.mat ? '\n' : '') + esc(x.wer) : ''}</div>
+        </div>`).join('')}
+      </div>` : '';
+
     const reviewCol = (t, v) => `<div><h4>${t}</h4>${textOr(v, 2)}</div>`;
     const zeit = state.uhrzeit ? state.uhrzeit + ' – ' + addMin(state.uhrzeit, lengthMin() || totalMin()) + ' Uhr' : '';
 
@@ -498,6 +546,7 @@
           ${rows}
         </div>
       </div>
+      ${extraHtml}
       <div class="s-two">
         <div class="s-card"><h3>Material-Checkliste</h3>${matHtml}</div>
         <div class="s-card">
