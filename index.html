@@ -87,6 +87,14 @@
     border: 1px solid var(--line-strong); border-radius: 8px;
     padding: 10px 12px; width: 100%; min-width: 0;
   }
+  input { height: 46px; }
+  /* Safari/iOS: Datums- und Zeitfelder sonst breiter und höher als ihre Spalte */
+  input[type="date"], input[type="time"] {
+    -webkit-appearance: none; appearance: none;
+    display: block; max-width: 100%; line-height: 24px;
+  }
+  input::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 24px; }
+  input::-webkit-datetime-edit { padding: 0; }
   textarea { resize: vertical; min-height: 70px; line-height: 1.4; }
   input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
   .hint { font-size: 14px; color: var(--muted); margin: 0; }
