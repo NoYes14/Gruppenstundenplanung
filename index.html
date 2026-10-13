@@ -119,12 +119,20 @@
   .icon-btn svg { width: 18px; height: 18px; }
 
   .total {
-    display: flex; justify-content: space-between; align-items: center;
-    padding: 12px 14px; border-radius: 10px; background: var(--soft);
-    font-size: 15px; color: var(--muted);
+    padding: 14px 16px; border-radius: 12px; background: var(--soft);
+    display: flex; flex-direction: column; gap: 12px;
   }
-  .total b { color: var(--ink); }
-  .total.warn b { color: var(--accent); }
+  .t-stats { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  .t-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .t-stat span { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .t-stat b { font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 700; color: var(--ink); }
+  .t-stat.over b { color: var(--accent); }
+  .t-stat.done b { color: #3E6B4F; }
+  .t-bar { height: 10px; border-radius: 99px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
+  .t-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .2s; }
+  .t-note { margin: 0; font-size: 14px; color: var(--muted); }
+  .bottombar-inner span b { color: var(--ink); }
+  .bottombar-inner span.over b { color: var(--accent); }
 
   .swatches { display: flex; gap: 12px; flex-wrap: wrap; }
   .swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line-strong); padding: 0; cursor: pointer; }
@@ -243,9 +251,10 @@
       <label>Stunde Nr.<input data-k="nr" inputmode="numeric"></label>
       <label>Datum<input type="date" data-k="datum"></label>
       <label>Beginn<input type="time" data-k="uhrzeit"></label>
+      <label>Dauer der Stunde (Min.)<input type="number" min="0" step="5" inputmode="numeric" data-k="laenge"></label>
       <label>Ort<input data-k="ort"></label>
+      <label>Betreuer<input data-k="betreuer" placeholder="z. B. Jannik, Lisa"></label>
     </div>
-    <label>Betreuer<input data-k="betreuer" placeholder="z. B. Jannik, Lisa"></label>
   </div>
 
   <div class="card">
@@ -324,7 +333,7 @@
 
   function blank() {
     return {
-      nr: '', datum: '', uhrzeit: '', ort: '', betreuer: '',
+      nr: '', datum: '', uhrzeit: '', laenge: '90', ort: '', betreuer: '',
       thema: '', ziel: '', material: '', kinder: '', betreuerAnz: '', hinweise: '',
       gut: '', anders: '', wuensche: '', accent: COLORS[0].hex,
       rows: [
@@ -339,7 +348,7 @@
   }
 
   let state;
-  try { state = JSON.parse(localStorage.getItem(STORE)) || blank(); } catch (e) { state = blank(); }
+  try { state = Object.assign(blank(), JSON.parse(localStorage.getItem(STORE)) || {}); } catch (e) { state = blank(); }
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -356,6 +365,7 @@
     return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
   }
   const totalMin = () => state.rows.reduce((a, r) => a + (Number(r.dauer) || 0), 0);
+  const lengthMin = () => Number(state.laenge) || 0;
 
   /* ---------- Ansichten umschalten ---------- */
   function showView(v) {
@@ -464,7 +474,7 @@
     if (mats.length && mats.length < 5) matHtml += '<div class="s-check"><i></i></div>';
 
     const reviewCol = (t, v) => `<div><h4>${t}</h4>${textOr(v, 2)}</div>`;
-    const zeit = state.uhrzeit ? state.uhrzeit + ' – ' + addMin(state.uhrzeit, totalMin()) + ' Uhr' : '';
+    const zeit = state.uhrzeit ? state.uhrzeit + ' – ' + addMin(state.uhrzeit, lengthMin() || totalMin()) + ' Uhr' : '';
 
     $('sheet').innerHTML = `
       <div class="s-head">
@@ -482,7 +492,7 @@
         <div class="s-box"><h3>Ziel – das nehmen die Kinder mit</h3>${textOr(state.ziel, 2)}</div>
       </div>
       <div>
-        <div class="s-sec"><h2>Ablauf</h2><small>Gesamtdauer: ${totalMin()} Min.</small></div>
+        <div class="s-sec"><h2>Ablauf</h2><small>Gesamtdauer: ${lengthMin() || totalMin()} Min.</small></div>
         <div class="s-table">
           <div class="s-tr s-th"><div>Zeit</div><div>Programmpunkt</div><div>Beschreibung</div><div>Material</div><div>Wer</div></div>
           ${rows}
@@ -524,10 +534,32 @@
   function update() {
     document.documentElement.style.setProperty('--accent', state.accent);
     const t = totalMin();
-    const tot = $('total');
-    tot.className = 'total' + (t !== 90 ? ' warn' : '');
-    tot.innerHTML = `<span>Gesamtdauer</span><b>${t} von 90 Min.</b>`;
-    $('bottom-total').textContent = `${state.rows.length} Programmpunkte · ${t} Min.`;
+    const L = lengthMin();
+    const rest = L - t;
+    const pct = L ? Math.min(100, Math.round(t / L * 100)) : 0;
+    const restCls = rest < 0 ? ' over' : rest === 0 ? ' done' : '';
+    const restLbl = rest < 0 ? 'Zu viel' : 'Noch frei';
+    let note;
+    if (!L) note = 'Trag oben unter „Dauer der Stunde“ ein, wie lange die Gruppenstunde geht.';
+    else if (rest > 0) note = `Du kannst noch ${rest} Min. verplanen.`;
+    else if (rest === 0) note = 'Perfekt – die Zeit ist genau verplant.';
+    else note = `Dein Ablauf ist ${-rest} Min. zu lang. Kürze einen Programmpunkt.`;
+    if (state.uhrzeit && L) note += ` Ende: ${addMin(state.uhrzeit, L)} Uhr.`;
+
+    $('total').innerHTML = `
+      <div class="t-stats">
+        <div class="t-stat"><span>Verfügbar</span><b>${L} Min.</b></div>
+        <div class="t-stat"><span>Verplant</span><b>${t} Min.</b></div>
+        <div class="t-stat${restCls}"><span>${restLbl}</span><b>${Math.abs(rest)} Min.</b></div>
+      </div>
+      <div class="t-bar" role="progressbar" aria-label="Verplante Zeit" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${pct}"><i style="width:${pct}%"></i></div>
+      <p class="t-note">${esc(note)}</p>`;
+
+    const bt = $('bottom-total');
+    bt.className = rest < 0 ? 'over' : '';
+    bt.innerHTML = L
+      ? `${t} von ${L} Min. · <b>${rest < 0 ? -rest + ' Min. zu viel' : rest + ' Min. frei'}</b>`
+      : `${state.rows.length} Programmpunkte · ${t} Min.`;
     persist();
   }
 
