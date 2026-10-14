@@ -6,6 +6,7 @@
 <title>HLF Gruppenstunden-Planer</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Source+Sans+3:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js"></script>
 <style>
   :root {
     --accent: #A8443A;
@@ -16,6 +17,7 @@
     --soft: #F6F1EC;
     --bg: #EFEBE6;
     --panel: #FFFFFF;
+    --ok: #3E6B4F;
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; }
@@ -28,24 +30,37 @@
   h1, h2, h3, h4 { font-family: 'Bricolage Grotesque', sans-serif; }
   [hidden] { display: none !important; }
 
+  /* ---------- Anmeldung ---------- */
+  .login { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 24px 16px; }
+  .login-card {
+    width: 100%; max-width: 400px; background: #fff; border: 1px solid var(--line);
+    border-radius: 18px; padding: 28px 26px; display: flex; flex-direction: column; gap: 16px;
+    box-shadow: 0 16px 48px rgba(34,32,30,.10);
+  }
+  .login-card .kicker { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+  .login-card h1 { margin: 2px 0 0; font-size: 26px; }
+  .login-card p { margin: 0; color: var(--muted); }
+  .login-err { color: var(--accent); font-weight: 600; font-size: 14px; }
+  .login-card button.btn { width: 100%; }
+
   /* ---------- Kopfleiste ---------- */
   .topbar {
     position: sticky; top: 0; z-index: 10;
     display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
     padding: 12px 20px;
     background: rgba(255,255,255,0.94);
-    backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border-bottom: 1px solid var(--line);
   }
   .brand { display: flex; flex-direction: column; min-width: 0; }
   .brand small { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
   .brand strong { font-family: 'Bricolage Grotesque', sans-serif; font-size: 20px; }
 
-  .tabs { display: flex; gap: 4px; padding: 4px; background: var(--soft); border-radius: 12px; border: 1px solid var(--line); }
+  .tabs { display: flex; gap: 4px; padding: 4px; background: var(--soft); border-radius: 12px; border: 1px solid var(--line); max-width: 100%; overflow-x: auto; }
   .tab {
     font: inherit; font-weight: 600; font-size: 14px;
-    min-height: 40px; padding: 0 16px; border: 0; border-radius: 9px;
-    background: transparent; color: var(--muted); cursor: pointer;
+    min-height: 40px; padding: 0 14px; border: 0; border-radius: 9px;
+    background: transparent; color: var(--muted); cursor: pointer; white-space: nowrap;
   }
   .tab[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(34,32,30,.12); }
 
@@ -55,14 +70,18 @@
     border-radius: 10px; border: 1px solid var(--line-strong);
     background: #fff; color: var(--ink); cursor: pointer;
     white-space: nowrap;
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
   }
   button.btn:hover { background: var(--soft); }
+  button.btn:disabled { opacity: .5; cursor: default; }
+  button.btn svg { width: 18px; height: 18px; }
   button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
   button.primary:hover { background: var(--accent); filter: brightness(0.92); }
   button.ghost { border-color: transparent; background: transparent; color: var(--muted); }
+  button.danger { color: var(--accent); }
+  button.sm { min-height: 38px; padding: 0 12px; font-size: 13px; }
 
-  /* ---------- Ansicht: Planen ---------- */
-  .view-edit { max-width: 760px; margin: 0 auto; padding: 24px 20px 120px; display: flex; flex-direction: column; gap: 16px; }
+  /* ---------- Formulare ---------- */
   .card {
     background: var(--panel); border: 1px solid var(--line);
     border-radius: 14px; padding: 18px 20px;
@@ -71,7 +90,7 @@
   }
   .card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
   .card h2 { margin: 0; font-size: 18px; }
-  .file-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 
   .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
   .grid-dur { display: grid; grid-template-columns: 96px minmax(0,1fr); gap: 12px; }
@@ -81,13 +100,13 @@
     display: flex; flex-direction: column; gap: 6px; min-width: 0;
     font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted);
   }
-  input, textarea {
+  input, textarea, select {
     font: inherit; font-size: 16px; text-transform: none; letter-spacing: 0; font-weight: 400;
     color: var(--ink); background: #fff;
     border: 1px solid var(--line-strong); border-radius: 8px;
     padding: 10px 12px; width: 100%; min-width: 0;
   }
-  input { height: 46px; }
+  input, select { height: 46px; }
   /* Safari/iOS: Datums- und Zeitfelder sonst breiter und höher als ihre Spalte */
   input[type="date"], input[type="time"] {
     -webkit-appearance: none; appearance: none;
@@ -95,9 +114,53 @@
   }
   input::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 24px; }
   input::-webkit-datetime-edit { padding: 0; }
+  select {
+    -webkit-appearance: none; appearance: none; padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236B6560' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center; background-size: 18px;
+  }
   textarea { resize: vertical; min-height: 70px; line-height: 1.4; }
-  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
+  input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; border-color: transparent; }
   .hint { font-size: 14px; color: var(--muted); margin: 0; }
+
+  /* ---------- Speicherstatus ---------- */
+  .status { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 600; color: var(--muted); }
+  .status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #B9B0A6; }
+  .status[data-s="saved"] { color: var(--ok); }
+  .status[data-s="saved"]::before { background: var(--ok); }
+  .status[data-s="saving"]::before { background: #C98A3C; }
+  .status[data-s="dirty"]::before, .status[data-s="new"]::before { background: #C98A3C; }
+  .status[data-s="error"] { color: var(--accent); }
+  .status[data-s="error"]::before { background: var(--accent); }
+
+  /* ---------- Ansicht: Übersicht ---------- */
+  .view-overview { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 20px; }
+  .page-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+  .page-head h1 { margin: 0; font-size: 30px; letter-spacing: -.01em; }
+  .page-head p { margin: 4px 0 0; color: var(--muted); }
+  .sec-title { margin: 0; font-size: 13px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-family: 'Source Sans 3', sans-serif; }
+  .plan-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .plan {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+  }
+  .plan.current { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+  .plan-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .plan-date { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: var(--accent); }
+  .plan-nr { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .plan h3 { margin: 0; font-size: 19px; line-height: 1.25; overflow-wrap: anywhere; }
+  .plan h3.none { color: var(--muted); font-weight: 600; }
+  .plan-actions { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; align-items: center; }
+  .plan-actions .grow { flex: 1 1 auto; }
+  .account {
+    display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+    border-top: 1px solid var(--line); padding-top: 16px; color: var(--muted); font-size: 14px;
+  }
+  .account b { color: var(--ink); font-weight: 600; }
+  .loading { color: var(--muted); padding: 24px 0; }
+
+  /* ---------- Ansicht: Planen ---------- */
+  .view-edit { max-width: 760px; margin: 0 auto; padding: 24px 20px 120px; display: flex; flex-direction: column; gap: 16px; }
 
   .rows { display: flex; flex-direction: column; gap: 12px; }
   .row {
@@ -105,11 +168,11 @@
     display: flex; flex-direction: column; gap: 12px; background: var(--soft);
     min-width: 0;
   }
-  .row-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .row-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
   .row-num { font-family: 'Bricolage Grotesque', sans-serif; font-weight: 700; font-size: 15px; color: var(--accent); }
-  .row-tools { display: flex; gap: 6px; }
+  .row-tools { display: flex; gap: 6px; flex-wrap: wrap; }
   .icon-btn {
-    width: 40px; height: 40px; padding: 0;
+    width: 40px; height: 40px; padding: 0; flex-shrink: 0;
     display: inline-flex; align-items: center; justify-content: center;
     border: 1px solid var(--line-strong); border-radius: 9px; background: #fff; color: var(--ink);
     cursor: pointer;
@@ -120,13 +183,8 @@
   .take-btn { width: auto; padding: 0 12px; gap: 6px; font: inherit; font-size: 14px; font-weight: 600; color: var(--accent); }
   @media (max-width: 520px) { .take-btn span { display: none; } .take-btn { width: 40px; padding: 0; } }
   .row-extra { background: #fff; border-style: dashed; border-color: var(--line-strong); }
-  .s-extra { border: 1.5px dashed var(--line-strong); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
-  .s-extra-head { display: flex; justify-content: space-between; align-items: baseline; }
-  .s-extra-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
-  .s-extra-item { display: grid; grid-template-columns: 70px 150px minmax(0,1fr) 130px; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); line-height: 1.35; }
-  .s-extra-item > div { min-width: 0; overflow-wrap: anywhere; white-space: pre-line; }
-  .s-extra-item .s-check { border: 0; padding: 0; min-height: 0; align-items: flex-start; gap: 8px; }
-  .s-extra-item .s-check i { margin-top: 2px; }
+  .add-row { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 10px; }
+  @media (max-width: 520px) { .add-row { grid-template-columns: minmax(0,1fr); } }
 
   .total {
     padding: 14px 16px; border-radius: 12px; background: var(--soft);
@@ -137,12 +195,10 @@
   .t-stat span { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
   .t-stat b { font-family: 'Bricolage Grotesque', sans-serif; font-size: 24px; font-weight: 700; color: var(--ink); }
   .t-stat.over b { color: var(--accent); }
-  .t-stat.done b { color: #3E6B4F; }
+  .t-stat.done b { color: var(--ok); }
   .t-bar { height: 10px; border-radius: 99px; background: #fff; border: 1px solid var(--line); overflow: hidden; }
   .t-bar i { display: block; height: 100%; background: var(--accent); border-radius: 99px; transition: width .2s; }
   .t-note { margin: 0; font-size: 14px; color: var(--muted); }
-  .bottombar-inner span b { color: var(--ink); }
-  .bottombar-inner span.over b { color: var(--accent); }
 
   .swatches { display: flex; gap: 12px; flex-wrap: wrap; }
   .swatch { width: 44px; height: 44px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px var(--line-strong); padding: 0; cursor: pointer; }
@@ -151,17 +207,89 @@
   .bottombar {
     position: fixed; left: 0; right: 0; bottom: 0; z-index: 9;
     padding: 12px 20px calc(12px + env(safe-area-inset-bottom));
-    background: rgba(255,255,255,0.94); backdrop-filter: blur(8px);
+    background: rgba(255,255,255,0.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
     border-top: 1px solid var(--line);
     display: flex; justify-content: center;
   }
   .bottombar-inner { width: 100%; max-width: 720px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-  .bottombar-inner span { font-size: 14px; color: var(--muted); }
+  .bottombar-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .bottombar-info > span { font-size: 14px; color: var(--muted); }
+  .bottombar-info > span b { color: var(--ink); }
+  .bottombar-info > span.over b { color: var(--accent); }
+
+  /* ---------- Ansicht: Ideen ---------- */
+  .view-ideas { max-width: 1120px; margin: 0 auto; padding: 24px 20px 64px; display: flex; flex-direction: column; gap: 18px; }
+  .filters { display: flex; flex-direction: column; gap: 12px; }
+  .filter-line { display: flex; gap: 10px; flex-wrap: wrap; }
+  .search { position: relative; flex: 1 1 260px; min-width: 0; }
+  .search svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--muted); pointer-events: none; }
+  .search input { padding-left: 40px; }
+  .filter-line select { width: auto; flex: 0 0 auto; min-width: 150px; }
+  .chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .chip {
+    font: inherit; font-size: 14px; font-weight: 600;
+    min-height: 38px; padding: 0 14px; border-radius: 99px;
+    border: 1px solid var(--line-strong); background: #fff; color: var(--muted); cursor: pointer;
+    display: inline-flex; align-items: center; gap: 8px;
+  }
+  .chip[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; }
+
+  .idea-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+  .idea {
+    background: #fff; border: 1px solid var(--line); border-radius: 14px;
+    padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; min-width: 0;
+    transition: box-shadow .2s, border-color .2s;
+  }
+  .idea.flash { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(168,68,58,.25); }
+  .idea-top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .cat { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .cat .dot { width: 8px; height: 8px; border-radius: 50%; }
+  .idea h3 { margin: 0; font-size: 19px; line-height: 1.2; overflow-wrap: anywhere; }
+  .meta { display: flex; gap: 6px; flex-wrap: wrap; }
+  .pill { font-size: 13px; font-weight: 600; padding: 3px 10px; border-radius: 99px; background: var(--soft); color: var(--ink); }
+  .idea-text { margin: 0; color: #3D3935; line-height: 1.45; white-space: pre-line; overflow-wrap: anywhere;
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+  .idea-mat { margin: 0; font-size: 14px; color: var(--muted); overflow-wrap: anywhere; }
+  .idea-mat b { color: var(--ink); font-weight: 600; }
+  .idea-actions { margin-top: auto; padding-top: 6px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .idea-actions .grow { flex: 1 1 auto; }
+  .empty { text-align: center; padding: 48px 20px; color: var(--muted); background: #fff; border: 1px dashed var(--line-strong); border-radius: 14px; }
+  .empty h3 { margin: 0 0 6px; color: var(--ink); }
+  .empty p { margin: 0 0 14px; }
+  .lib-tools { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 16px; }
+
+  /* ---------- Dialog ---------- */
+  dialog {
+    border: 0; padding: 0; border-radius: 16px; width: min(620px, calc(100vw - 32px));
+    max-height: calc(100vh - 48px); background: #fff; color: var(--ink);
+    box-shadow: 0 24px 64px rgba(34,32,30,.28);
+  }
+  dialog.narrow { width: min(420px, calc(100vw - 32px)); }
+  dialog::backdrop { background: rgba(34,32,30,.45); }
+  .dlg { display: flex; flex-direction: column; max-height: calc(100vh - 48px); }
+  .dlg-head { padding: 20px 22px 4px; display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .dlg-head h2 { margin: 0; font-size: 22px; }
+  .dlg-body { padding: 14px 22px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; }
+  .dlg-foot { padding: 14px 22px 20px; display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; border-top: 1px solid var(--line); }
+  .dlg-foot .right { display: flex; gap: 8px; margin-left: auto; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  @media (max-width: 520px) { .grid3 { grid-template-columns: minmax(0,1fr); } }
+
+  /* ---------- Toast ---------- */
+  .toast {
+    position: fixed; left: 50%; bottom: calc(92px + env(safe-area-inset-bottom)); z-index: 30;
+    transform: translateX(-50%) translateY(20px); opacity: 0; pointer-events: none;
+    background: var(--ink); color: #fff; border-radius: 12px; padding: 10px 10px 10px 16px;
+    display: flex; align-items: center; gap: 12px; max-width: calc(100vw - 32px);
+    box-shadow: 0 10px 30px rgba(34,32,30,.3); transition: opacity .2s, transform .2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .toast button { font: inherit; font-weight: 600; font-size: 14px; color: #fff; background: rgba(255,255,255,.14); border: 0; border-radius: 8px; min-height: 36px; padding: 0 12px; cursor: pointer; white-space: nowrap; }
 
   /* ---------- Ansicht: Vorschau ---------- */
   .view-preview { max-width: 900px; margin: 0 auto; padding: 24px 20px 48px; display: flex; flex-direction: column; gap: 16px; }
   .preview-tools { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
-  .preview-tools p { margin: 0; font-size: 14px; color: var(--muted); }
   .preview-frame { width: 100%; overflow: hidden; }
   .preview-scale { transform-origin: top left; width: 794px; }
 
@@ -193,7 +321,7 @@
   .s-sec h2 { margin: 0; font-size: 20px; font-weight: 700; }
   .s-sec small { font-size: 12px; color: var(--muted); }
   .s-table { border: 1px solid var(--line-strong); border-radius: 12px; overflow: hidden; }
-  .s-tr { display: grid; grid-template-columns: 76px 140px minmax(0,1fr) 130px 76px; min-height: 50px; border-top: 1px solid #DED6CD; }
+  .s-tr { display: grid; grid-template-columns: 76px 140px minmax(0,1fr) 130px 76px; min-height: 50px; border-top: 1px solid #DED6CD; break-inside: avoid; }
   .s-tr:first-child { border-top: 0; }
   .s-tr > div { padding: 8px 10px; border-left: 1px solid #DED6CD; line-height: 1.35; white-space: pre-line; overflow-wrap: anywhere; min-width: 0; }
   .s-tr > div:first-child { border-left: 0; }
@@ -212,12 +340,19 @@
   .s-three { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 16px; }
   .s-three h4 { margin: 0 0 6px; font-size: 13px; color: var(--accent); }
   .s-foot { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); }
+  .s-extra { border: 1.5px dashed var(--line-strong); border-radius: 12px; padding: 12px 16px; display: flex; flex-direction: column; gap: 8px; }
+  .s-extra-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .s-extra-head h3 { margin: 0; font-size: 16px; font-weight: 600; }
+  .s-extra-item { display: grid; grid-template-columns: 70px 150px minmax(0,1fr) 130px; gap: 10px; padding-top: 8px; border-top: 1px solid var(--line); line-height: 1.35; break-inside: avoid; }
+  .s-extra-item > div { min-width: 0; overflow-wrap: anywhere; white-space: pre-line; }
+  .s-extra-item .s-check { border: 0; padding: 0; min-height: 0; align-items: flex-start; gap: 8px; }
+  .s-extra-item .s-check i { margin-top: 2px; }
 
   /* ---------- Druck / PDF ---------- */
   @page { size: A4; margin: 0; }
   @media print {
     body { background: #fff; }
-    .topbar, .view-edit, .bottombar, .preview-tools, .view-preview > .hint { display: none !important; }
+    .topbar, .view-overview, .view-edit, .view-ideas, .bottombar, .preview-tools, .view-preview > .hint, .toast, dialog, .login { display: none !important; }
     .view-preview { display: block !important; padding: 0; max-width: none; }
     .preview-frame { overflow: visible; height: auto !important; }
     .preview-scale { transform: none !important; }
@@ -228,31 +363,75 @@
 </head>
 <body>
 
+<!-- ================= ANMELDUNG ================= -->
+<section class="login" id="login" hidden>
+  <form class="login-card" id="login-form">
+    <div>
+      <div class="kicker">Kinderfeuerwehr · HLF-Gruppe</div>
+      <h1>Gruppenstunden-Planer</h1>
+    </div>
+    <p>Melde dich mit dem Konto an, das du von deinem Gruppenleiter bekommen hast.</p>
+    <label>E-Mail<input type="email" id="login-email" autocomplete="username" required></label>
+    <label>Passwort<input type="password" id="login-pw" autocomplete="current-password" required></label>
+    <div class="login-err" id="login-err" role="alert" hidden></div>
+    <button type="submit" class="btn primary" id="login-btn">Anmelden</button>
+  </form>
+</section>
+
+<div id="app" hidden>
 <header class="topbar">
   <div class="brand">
     <small>Kinderfeuerwehr · HLF-Gruppe</small>
     <strong>Gruppenstunden-Planer</strong>
   </div>
   <nav class="tabs" role="tablist" aria-label="Ansicht">
-    <button type="button" class="tab" role="tab" id="tab-edit" data-view="planen">1 · Planen</button>
-    <button type="button" class="tab" role="tab" id="tab-preview" data-view="vorschau">2 · Vorschau &amp; Export</button>
+    <button type="button" class="tab" role="tab" id="tab-uebersicht" data-view="uebersicht">Übersicht</button>
+    <button type="button" class="tab" role="tab" id="tab-planen" data-view="planen">Planen</button>
+    <button type="button" class="tab" role="tab" id="tab-ideen" data-view="ideen">Ideen</button>
+    <button type="button" class="tab" role="tab" id="tab-vorschau" data-view="vorschau">Vorschau &amp; Export</button>
   </nav>
 </header>
 
-<!-- ================= ANSICHT 1: PLANEN ================= -->
-<main class="view-edit" id="view-edit">
+<!-- ================= ANSICHT: ÜBERSICHT ================= -->
+<main class="view-overview" id="view-uebersicht" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Gruppenstunden</h1>
+      <p id="plans-count"></p>
+    </div>
+    <button type="button" class="btn primary" id="btn-new-plan">+ Neue Gruppenstunde</button>
+  </div>
+  <div class="loading" id="plans-loading">Lädt …</div>
+  <div class="empty" id="plans-empty" hidden>
+    <h3>Noch keine Gruppenstunde gespeichert</h3>
+    <p>Leg deine erste Gruppenstunde an. Sie ist danach für alle Betreuer sichtbar.</p>
+    <button type="button" class="btn primary" id="btn-new-plan-2">+ Neue Gruppenstunde</button>
+  </div>
+  <h2 class="sec-title" id="sec-next" hidden>Kommende &amp; ohne Datum</h2>
+  <div class="plan-grid" id="plans-next"></div>
+  <h2 class="sec-title" id="sec-past" hidden>Vergangene</h2>
+  <div class="plan-grid" id="plans-past"></div>
+  <div class="account">
+    <span>Angemeldet als <b id="user-email"></b></span>
+    <div class="btn-row">
+      <button type="button" class="btn sm" id="btn-pw">Passwort ändern</button>
+      <button type="button" class="btn sm ghost" id="btn-logout">Abmelden</button>
+    </div>
+  </div>
+</main>
+
+<!-- ================= ANSICHT: PLANEN ================= -->
+<main class="view-edit" id="view-planen" hidden>
 
   <div class="card">
     <div class="card-head">
-      <h2>Plan</h2>
-      <div class="file-actions">
-        <button type="button" class="btn ghost" id="btn-new">Neu</button>
-        <button type="button" class="btn" id="btn-load">Öffnen</button>
+      <h2 id="plan-heading">Gruppenstunde</h2>
+      <div class="btn-row">
+        <button type="button" class="btn ghost" data-view="uebersicht">Alle Stunden</button>
         <button type="button" class="btn" id="btn-save">Speichern</button>
-        <input type="file" id="file-load" accept="application/json,.json" hidden>
       </div>
     </div>
-    <p class="hint">Deine Eingaben werden automatisch in diesem Browser gespeichert. „Speichern“ lädt den Plan zusätzlich als Datei herunter.</p>
+    <span class="status" id="save-status" data-s="new" role="status"></span>
   </div>
 
   <div class="card">
@@ -277,7 +456,10 @@
     <h2>Ablauf</h2>
     <p class="hint">Dauer in Minuten. Mit einer Beginn-Uhrzeit werden die Startzeiten automatisch berechnet.</p>
     <div class="rows" id="rows"></div>
-    <button type="button" class="btn" id="btn-add-row">+ Programmpunkt hinzufügen</button>
+    <div class="add-row">
+      <button type="button" class="btn" id="btn-add-row">+ Leerer Programmpunkt</button>
+      <button type="button" class="btn" data-pick="rows">Aus Ideen-Sammlung einfügen</button>
+    </div>
     <div class="total" id="total"></div>
   </div>
 
@@ -286,7 +468,10 @@
     <p class="hint">Ideen als Reserve. Sie zählen nicht zur verplanten Zeit und stehen im PDF in einem eigenen Bereich. Mit „Übernehmen“ verschiebst du eine Idee in den Ablauf.</p>
     <p class="hint" id="extras-empty">Noch keine Reserve-Ideen.</p>
     <div class="rows" id="extras"></div>
-    <button type="button" class="btn" id="btn-add-extra">+ Reserve-Idee hinzufügen</button>
+    <div class="add-row">
+      <button type="button" class="btn" id="btn-add-extra">+ Leere Reserve-Idee</button>
+      <button type="button" class="btn" data-pick="extras">Aus Ideen-Sammlung einfügen</button>
+    </div>
   </div>
 
   <div class="card">
@@ -313,15 +498,71 @@
   </div>
 </main>
 
-<div class="bottombar" id="bottombar">
+<div class="bottombar" id="bottombar" hidden>
   <div class="bottombar-inner">
-    <span id="bottom-total"></span>
+    <div class="bottombar-info">
+      <span id="bottom-total"></span>
+      <span class="status" id="bottom-status" data-s="new"></span>
+    </div>
     <button type="button" class="btn primary" data-view="vorschau">Weiter zur Vorschau →</button>
   </div>
 </div>
 
-<!-- ================= ANSICHT 2: VORSCHAU & EXPORT ================= -->
-<main class="view-preview" id="view-preview" hidden>
+<!-- ================= ANSICHT: IDEEN-SAMMLUNG ================= -->
+<main class="view-ideas" id="view-ideen" hidden>
+  <div class="page-head">
+    <div>
+      <h1>Ideen-Sammlung</h1>
+      <p id="ideas-count"></p>
+    </div>
+    <div class="btn-row">
+      <button type="button" class="btn" id="btn-random">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/></svg>
+        Zufällige Idee
+      </button>
+      <button type="button" class="btn primary" id="btn-new-idea">+ Neue Idee</button>
+    </div>
+  </div>
+
+  <div class="filters">
+    <div class="filter-line">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input type="search" id="idea-search" placeholder="Suchen, z. B. Knoten, Funk, draußen …" aria-label="Ideen durchsuchen">
+      </div>
+      <select id="idea-ort" aria-label="Ort filtern">
+        <option value="">Drinnen &amp; draußen</option>
+        <option value="drinnen">Geht drinnen</option>
+        <option value="draußen">Geht draußen</option>
+      </select>
+      <select id="idea-dauer" aria-label="Dauer filtern">
+        <option value="">Jede Dauer</option>
+        <option value="10">bis 10 Min.</option>
+        <option value="15">bis 15 Min.</option>
+        <option value="20">bis 20 Min.</option>
+        <option value="30">bis 30 Min.</option>
+      </select>
+    </div>
+    <div class="chips" id="cat-chips"></div>
+  </div>
+
+  <div class="loading" id="ideas-loading" hidden>Lädt …</div>
+  <div class="idea-grid" id="idea-grid"></div>
+  <div class="empty" id="idea-empty" hidden>
+    <h3>Keine passende Idee gefunden</h3>
+    <p>Ändere die Filter oder leg mit „+ Neue Idee“ eine eigene an.</p>
+  </div>
+
+  <div class="lib-tools">
+    <button type="button" class="btn ghost sm" id="btn-ideas-reset">Beispiel-Ideen hinzufügen</button>
+    <button type="button" class="btn sm" id="btn-ideas-import">Sammlung importieren</button>
+    <button type="button" class="btn sm" id="btn-ideas-export">Sicherung herunterladen (ideen.json)</button>
+    <input type="file" id="ideas-file" accept="application/json,.json" hidden>
+  </div>
+</main>
+
+<!-- ================= ANSICHT: VORSCHAU & EXPORT ================= -->
+<main class="view-preview" id="view-vorschau" hidden>
   <div class="preview-tools">
     <button type="button" class="btn" data-view="planen">← Zurück zum Planen</button>
     <button type="button" class="btn primary" id="btn-pdf">Als PDF exportieren</button>
@@ -333,22 +574,134 @@
     </div>
   </div>
 </main>
+</div>
+
+<!-- ================= DIALOG: IDEE BEARBEITEN ================= -->
+<dialog id="idea-dialog" aria-labelledby="dlg-title">
+  <form class="dlg" id="idea-form" method="dialog">
+    <div class="dlg-head">
+      <h2 id="dlg-title">Neue Idee</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <label>Titel<input id="f-titel" required placeholder="z. B. Notruf-Training 112"></label>
+      <div class="grid3">
+        <label>Kategorie<select id="f-kategorie"></select></label>
+        <label>Dauer (Min.)<input id="f-dauer" type="number" min="0" step="5" inputmode="numeric"></label>
+        <label>Ort<select id="f-ort">
+          <option value="beides">Beides</option>
+          <option value="drinnen">Drinnen</option>
+          <option value="draußen">Draußen</option>
+        </select></label>
+      </div>
+      <label>Ablauf / Beschreibung<textarea id="f-text" rows="6" placeholder="Wie läuft es ab? Worauf achten?"></textarea></label>
+      <label>Material<input id="f-material" placeholder="z. B. 2 Funkgeräte, Kärtchen"></label>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn ghost danger" id="dlg-delete">Löschen</button>
+      <div class="right">
+        <button type="button" class="btn" data-close>Abbrechen</button>
+        <button type="submit" class="btn primary" id="dlg-submit">Speichern</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<!-- ================= DIALOG: PASSWORT ÄNDERN ================= -->
+<dialog id="pw-dialog" class="narrow" aria-labelledby="pw-title">
+  <form class="dlg" id="pw-form" method="dialog">
+    <div class="dlg-head">
+      <h2 id="pw-title">Passwort ändern</h2>
+      <button type="button" class="icon-btn" data-close aria-label="Schließen">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="dlg-body">
+      <label>Neues Passwort<input type="password" id="pw-1" minlength="8" autocomplete="new-password" required></label>
+      <label>Wiederholen<input type="password" id="pw-2" minlength="8" autocomplete="new-password" required></label>
+      <p class="hint">Mindestens 8 Zeichen.</p>
+      <div class="login-err" id="pw-err" role="alert" hidden></div>
+    </div>
+    <div class="dlg-foot">
+      <div class="right">
+        <button type="button" class="btn" data-close>Abbrechen</button>
+        <button type="submit" class="btn primary">Passwort speichern</button>
+      </div>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"><span id="toast-text"></span><button type="button" id="toast-btn" hidden></button></div>
 
 <script>
 (function () {
-  const STORE = 'hlf-planer-v1';
+  /* ================= EINSTELLUNGEN ================= */
+  const SUPABASE_URL = 'https://lspapbhbygmxbeknvaqc.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_zTWLS5zNYs6jM-1HqPW7FQ_fPsF0eWG';
+
+  const DRAFT_STORE = 'hlf-planer-v1';      // aktueller Entwurf auf diesem Gerät
+  const OLD_IDEA_STORE = 'hlf-ideen-v1';    // Ideen aus der Version ohne Datenbank
+  const MIGRATED_FLAG = 'hlf-ideen-hochgeladen';
+
   const COLORS = [
     { name: 'Feuerwehrrot', hex: '#A8443A' },
     { name: 'Blau', hex: '#2F5D7C' },
     { name: 'Grün', hex: '#3E6B4F' },
     { name: 'Grau', hex: '#4A4540' }
   ];
+  const CATS = [
+    { name: 'Kennenlernen', color: '#C98A3C' },
+    { name: 'Spiele', color: '#2F5D7C' },
+    { name: 'Bewegung', color: '#3E6B4F' },
+    { name: 'Feuerwehrwissen', color: '#A8443A' },
+    { name: 'Teamwork', color: '#6A4C93' },
+    { name: 'Kreativ', color: '#B05C86' },
+    { name: 'Abschluss', color: '#4A4540' }
+  ];
+  const catColor = n => (CATS.find(c => c.name === n) || { color: '#8F867D' }).color;
+  const ORT_LABEL = { drinnen: 'Drinnen', 'draußen': 'Draußen', beides: 'Drinnen & draußen' };
+
+  const SVG = p => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
   const ICON = {
-    up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19V5M5 12l7-7 7 7"/></svg>',
-    down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M19 12l-7 7-7-7"/></svg>',
-    take: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg>',
-    del: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/></svg>'
+    up: SVG('<path d="M12 19V5M5 12l7-7 7 7"/>'),
+    down: SVG('<path d="M12 5v14M19 12l-7 7-7-7"/>'),
+    take: SVG('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+    save: SVG('<path d="M6 3h12v18l-6-4-6 4z"/>'),
+    edit: SVG('<path d="M4 20h4L19 9l-4-4L4 16z"/>'),
+    copy: SVG('<rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/>'),
+    del: SVG('<path d="M4 7h16M10 11v6M14 11v6M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12M9 7V4h6v3"/>')
   };
+
+  const SEED_IDEAS = [
+    { titel: 'Namenskette mit Feuerwehrgegenstand', kategorie: 'Kennenlernen', dauer: 10, ort: 'beides', material: '',
+      text: 'Jedes Kind sagt seinen Namen und einen Feuerwehrgegenstand mit gleichem Anfangsbuchstaben („Paul – Pylone“). Das nächste Kind wiederholt alle vorherigen und hängt sich selbst an.' },
+    { titel: 'Alle, die …', kategorie: 'Kennenlernen', dauer: 10, ort: 'drinnen', material: 'Stühle (einer weniger als Kinder)',
+      text: 'Stuhlkreis, ein Kind steht in der Mitte und sagt „Alle, die … schon mal im HLF mitgefahren sind“. Wer das erfüllt, sucht sich einen neuen Platz. Wer übrig bleibt, ist als Nächstes dran.' },
+    { titel: 'Gruppenregeln-Plakat', kategorie: 'Teamwork', dauer: 10, ort: 'drinnen', material: 'Plakat, dicke Stifte',
+      text: 'Die Kinder schlagen selbst Regeln vor, ihr einigt euch gemeinsam. Am Ende unterschreiben alle das Plakat, es hängt danach im Gruppenraum.' },
+    { titel: 'Notruf-Training 112', kategorie: 'Feuerwehrwissen', dauer: 20, ort: 'drinnen', material: '2 alte Handys oder Spielzeugtelefone, Notfall-Kärtchen',
+      text: 'Zuerst gemeinsam klären: Wo ist es passiert? Was ist passiert? Wie viele Verletzte? Warten auf Rückfragen.\nDann zu zweit: Ein Kind meldet einen ausgedachten Notfall, das andere ist die Leitstelle. Danach Rollen tauschen.' },
+    { titel: 'HLF-Fotorallye', kategorie: 'Feuerwehrwissen', dauer: 25, ort: 'beides', material: '10–15 Fotokarten von Geräten, Punkteliste',
+      text: 'Zwei Teams bekommen Fotos von Geräten ohne Namen. Sie suchen das richtige Fach am HLF und nennen den Namen. Fächer werden nur geöffnet und angeschaut, nichts wird herausgenommen. Pro richtiger Antwort ein Punkt.' },
+    { titel: 'Feuerwehr-ABC', kategorie: 'Spiele', dauer: 10, ort: 'drinnen', material: 'Papier, Stifte',
+      text: 'Stadt-Land-Fluss mit den Spalten „Feuerwehrgegenstand“, „Tier“ und „Name“. J, Q, X und Y weglassen.' },
+    { titel: 'Funk-Stille-Post', kategorie: 'Feuerwehrwissen', dauer: 10, ort: 'beides', material: 'Walkie-Talkies, Buchstabiertafel',
+      text: 'Die Kinder buchstabieren ihren Namen mit der Funk-Buchstabiertafel (A wie Anton …). Danach gibt ein Kind ein Wort per Funk durch, die anderen schreiben mit.' },
+    { titel: 'Feuer, Wasser, Blitz – Feuerwehr-Version', kategorie: 'Bewegung', dauer: 10, ort: 'beides', material: '',
+      text: '„Brand!“ = auf den Boden legen, „Wasser marsch!“ = hinter eine Linie laufen, „Alarm!“ = zur Tür rennen. Wer zu spät ist, setzt eine Runde aus.' },
+    { titel: 'Wer bin ich? (Gerät)', kategorie: 'Spiele', dauer: 10, ort: 'drinnen', material: 'Karten mit Gerätenamen, Klebeband',
+      text: 'Ein Kind bekommt eine Karte mit einem Gerät auf die Stirn und stellt Ja/Nein-Fragen: „Bin ich auf dem HLF?“, „Braucht man mich bei Feuer?“' },
+    { titel: 'Knoten-Training', kategorie: 'Feuerwehrwissen', dauer: 15, ort: 'beides', material: '4 Leinen oder Seile',
+      text: 'Einen einfachen Knoten (z. B. Mastwurf) vormachen und üben. Wer ihn kann, zeigt ihn dem nächsten Kind.' },
+    { titel: 'Feuerwehr-Pantomime', kategorie: 'Spiele', dauer: 10, ort: 'drinnen', material: 'Zettel mit Begriffen',
+      text: 'Ein Kind stellt eine Tätigkeit oder ein Gerät pantomimisch dar, die anderen raten: Schlauch ausrollen, Leiter hochklettern, Notruf wählen …' },
+    { titel: 'Wasserstaffel mit Bechern', kategorie: 'Bewegung', dauer: 15, ort: 'draußen', material: 'Becher, 2 Eimer, Wasser',
+      text: 'Zwei Teams transportieren Wasser mit Bechern von einem Eimer zum anderen. Welches Team hat nach der Zeit mehr Wasser im Ziel-Eimer?' },
+    { titel: 'Blitzlicht & Wunschplakat', kategorie: 'Abschluss', dauer: 10, ort: 'drinnen', material: 'Plakat, Stifte',
+      text: 'Jedes Kind sagt in einem Satz, was ihm heute gefallen hat. Wünsche für die nächsten Stunden kommen aufs Plakat. Zum Schluss der Gruppenruf „HLF – bereit!“.' }
+  ];
 
   function blank() {
     return {
@@ -366,47 +719,296 @@
       ]
     };
   }
-
-  let state;
-  try { state = Object.assign(blank(), JSON.parse(localStorage.getItem(STORE)) || {}); } catch (e) { state = blank(); }
+  function normalizePlan(p) {
+    const s = Object.assign(blank(), p || {});
+    if (!Array.isArray(s.rows)) s.rows = [];
+    if (!Array.isArray(s.extras)) s.extras = [];
+    return s;
+  }
 
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const persist = () => { try { localStorage.setItem(STORE, JSON.stringify(state)); } catch (e) {} };
+  const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+  const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
 
-  function fmtDate(iso) {
+  function fmtDate(iso, opts) {
     if (!iso) return '';
     const d = new Date(iso + 'T12:00:00');
-    return isNaN(d) ? iso : d.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
+    return isNaN(d) ? iso : d.toLocaleDateString('de-DE', opts || { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
   }
+  const fmtTime = ts => new Date(ts).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
   function addMin(hhmm, m) {
     const [h, mi] = hhmm.split(':').map(Number);
     const t = ((h * 60 + mi + m) % 1440 + 1440) % 1440;
     return String(Math.floor(t / 60)).padStart(2, '0') + ':' + String(t % 60).padStart(2, '0');
   }
-  const totalMin = () => state.rows.reduce((a, r) => a + (Number(r.dauer) || 0), 0);
-  const lengthMin = () => Number(state.laenge) || 0;
+  const sumRows = p => (p.rows || []).reduce((a, r) => a + (Number(r.dauer) || 0), 0);
+  const todayIso = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); };
+
+  /* ---------- Toast ---------- */
+  let toastTimer;
+  function toast(msg, btnLabel, onBtn) {
+    $('toast-text').textContent = msg;
+    const b = $('toast-btn');
+    b.hidden = !btnLabel;
+    if (btnLabel) { b.textContent = btnLabel; b.onclick = () => { onBtn(); $('toast').classList.remove('show'); }; }
+    $('toast').classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => $('toast').classList.remove('show'), 4500);
+  }
+  function dbError(e, what) {
+    console.error(what, e);
+    const msg = (e && (e.message || e.error_description)) || String(e);
+    if (/fetch|network|load failed/i.test(msg)) toast(`${what} fehlgeschlagen: keine Verbindung zur Datenbank. Ist das Supabase-Projekt pausiert?`);
+    else if (/JWT|session|auth/i.test(msg)) toast(`${what} fehlgeschlagen: Bitte neu anmelden.`);
+    else toast(`${what} fehlgeschlagen: ${msg}`);
+  }
+
+  /* ================= DATENBANK ================= */
+  let db = null;
+  async function run(query) {
+    const { data, error } = await query;
+    if (error) throw error;
+    return data;
+  }
+
+  // Ideen: Feldnamen der App <-> Spalten der Tabelle "ideen"
+  const ideaFromDb = r => ({
+    id: r.id, titel: r.titel || '', kategorie: r.kategorie || 'Spiele',
+    dauer: r.dauer == null ? '' : r.dauer, ort: ORT_LABEL[r.ort] ? r.ort : 'beides',
+    material: r.material || '', text: r.beschreibung || ''
+  });
+  const ideaToDb = x => ({
+    titel: String(x.titel || '').trim(),
+    kategorie: x.kategorie || 'Spiele',
+    dauer: x.dauer === '' || x.dauer == null || isNaN(Number(x.dauer)) ? null : Math.max(0, Math.round(Number(x.dauer))),
+    ort: ORT_LABEL[x.ort] ? x.ort : 'beides',
+    material: x.material || '',
+    beschreibung: x.text || ''
+  });
+
+  const Ideas = {
+    list: async () => (await run(db.from('ideen').select('*').order('titel'))).map(ideaFromDb),
+    insert: async x => ideaFromDb(await run(db.from('ideen').insert(ideaToDb(x)).select().single())),
+    insertMany: async xs => xs.length ? (await run(db.from('ideen').insert(xs.map(ideaToDb)).select())).map(ideaFromDb) : [],
+    update: async x => ideaFromDb(await run(db.from('ideen').update(ideaToDb(x)).eq('id', x.id).select().single())),
+    remove: async id => run(db.from('ideen').delete().eq('id', id))
+  };
+
+  const planPayload = p => {
+    const plan = JSON.parse(JSON.stringify(p));
+    delete plan.id;
+    return { nr: p.nr || null, datum: p.datum || null, thema: (p.thema || '').trim() || null, plan };
+  };
+  const Plans = {
+    list: async () => run(db.from('gruppenstunden').select('id, nr, datum, thema, plan, geaendert_am').order('datum', { ascending: false, nullsFirst: true })),
+    get: async id => run(db.from('gruppenstunden').select('*').eq('id', id).maybeSingle()),
+    insert: async p => run(db.from('gruppenstunden').insert(planPayload(p)).select('id, geaendert_am').single()),
+    update: async p => run(db.from('gruppenstunden').update(planPayload(p)).eq('id', p.id).select('id, geaendert_am').maybeSingle()),
+    remove: async id => run(db.from('gruppenstunden').delete().eq('id', id))
+  };
+
+  /* ================= ZUSTAND ================= */
+  let state = normalizePlan(null);
+  let lastSaved = null;        // Stand, der zuletzt in der Datenbank gelandet ist
+  let saveTimer = null;
+  let saving = null;           // laufender Speichervorgang (Promise)
+  let saveFailed = false;
+  let savedAt = null;
+  let ideas = [];
+  let ideasLoaded = false;
+  let plans = [];
+
+  const snapshot = () => JSON.stringify(planPayload(state).plan);
+  const isDirty = () => snapshot() !== lastSaved;
+  const persistDraft = () => lsSet(DRAFT_STORE, JSON.stringify(state));
+
+  /* ---------- Speichern ---------- */
+  function renderStatus() {
+    let s, text;
+    if (saving) { s = 'saving'; text = 'Speichert …'; }
+    else if (saveFailed) { s = 'error'; text = 'Nicht gespeichert – Verbindung prüfen'; }
+    else if (!state.id) { s = 'new'; text = 'Neu – noch nicht gespeichert'; }
+    else if (isDirty()) { s = 'dirty'; text = 'Ungespeicherte Änderungen'; }
+    else { s = 'saved'; text = 'Für alle gespeichert' + (savedAt ? ' · ' + fmtTime(savedAt) : ''); }
+    ['save-status', 'bottom-status'].forEach(id => { $(id).dataset.s = s; $(id).textContent = text; });
+    $('btn-save').disabled = !!saving || (!!state.id && !isDirty() && !saveFailed);
+    $('btn-save').textContent = state.id ? 'Jetzt speichern' : 'Speichern';
+    $('plan-heading').textContent = state.id ? 'Gruppenstunde' + (state.nr ? ' Nr. ' + state.nr : '') : 'Neue Gruppenstunde';
+  }
+
+  async function saveNow() {
+    clearTimeout(saveTimer);
+    if (saving) { await saving; if (!isDirty() && state.id) return true; }
+    const snap = snapshot();
+    const target = state;
+    saving = (async () => {
+      try {
+        let row;
+        if (target.id) {
+          row = await Plans.update(target);
+          if (!row) { delete target.id; row = await Plans.insert(target); } // wurde inzwischen gelöscht
+        } else {
+          row = await Plans.insert(target);
+        }
+        if (target === state) {
+          state.id = row.id;
+          lastSaved = snap;
+          savedAt = row.geaendert_am || new Date().toISOString();
+          persistDraft();
+        }
+        saveFailed = false;
+        return true;
+      } catch (e) {
+        saveFailed = true;
+        dbError(e, 'Speichern');
+        return false;
+      }
+    })();
+    renderStatus();
+    const ok = await saving;
+    saving = null;
+    renderStatus();
+    if (ok && isDirty()) scheduleSave();
+    return ok;
+  }
+  function scheduleSave() {
+    clearTimeout(saveTimer);
+    if (state.id) saveTimer = setTimeout(saveNow, 1200);  // bestehende Stunden speichern automatisch
+  }
+  $('btn-save').addEventListener('click', async () => {
+    const wasNew = !state.id;
+    if (await saveNow() && wasNew) toast('Gruppenstunde gespeichert. Änderungen werden ab jetzt automatisch gesichert.');
+  });
+  window.addEventListener('beforeunload', e => {
+    if (saving || (state.id && isDirty())) { e.preventDefault(); e.returnValue = ''; }
+  });
+
+  async function confirmLeaveCurrent() {
+    if (state.id) { if (isDirty()) await saveNow(); return true; }
+    if (snapshot() === JSON.stringify(planPayload(blank()).plan)) return true;
+    return confirm('Die aktuelle Gruppenstunde ist noch nicht gespeichert. Trotzdem verwerfen?');
+  }
+  function loadPlan(p, savedSnap) {
+    state = normalizePlan(p);
+    lastSaved = savedSnap !== undefined ? savedSnap : snapshot();
+    saveFailed = false;
+    persistDraft();
+    loadIntoForm();
+  }
 
   /* ---------- Ansichten umschalten ---------- */
+  const VIEWS = ['uebersicht', 'planen', 'ideen', 'vorschau'];
   function showView(v) {
-    const preview = v === 'vorschau';
-    $('view-edit').hidden = preview;
-    $('bottombar').hidden = preview;
-    $('view-preview').hidden = !preview;
-    $('tab-edit').setAttribute('aria-selected', String(!preview));
-    $('tab-preview').setAttribute('aria-selected', String(preview));
+    if (!VIEWS.includes(v)) v = 'uebersicht';
+    VIEWS.forEach(n => {
+      $('view-' + n).hidden = n !== v;
+      $('tab-' + n).setAttribute('aria-selected', String(n === v));
+    });
+    $('bottombar').hidden = v !== 'planen';
     if (location.hash !== '#' + v) history.replaceState(null, '', '#' + v);
     window.scrollTo(0, 0);
-    if (preview) { renderSheet(); requestAnimationFrame(fit); }
+    if (v === 'vorschau') { renderSheet(); requestAnimationFrame(fit); }
+    if (v === 'ideen') refreshIdeas();
+    if (v === 'uebersicht') refreshPlans();
   }
   document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => showView(b.dataset.view)));
 
-  /* ---------- Einfache Felder ---------- */
+  /* ================= ÜBERSICHT ================= */
+  async function refreshPlans() {
+    $('plans-loading').hidden = plans.length > 0;
+    try {
+      plans = await Plans.list();
+    } catch (e) { dbError(e, 'Laden der Gruppenstunden'); }
+    $('plans-loading').hidden = true;
+    renderPlans();
+  }
+  function renderPlans() {
+    const today = todayIso();
+    const next = plans.filter(p => !p.datum || p.datum >= today)
+      .sort((a, b) => (a.datum || '9999') < (b.datum || '9999') ? -1 : 1);
+    const past = plans.filter(p => p.datum && p.datum < today);
+    $('plans-count').textContent = plans.length === 1 ? '1 Gruppenstunde gespeichert' : `${plans.length} Gruppenstunden gespeichert`;
+    $('plans-empty').hidden = plans.length > 0;
+    $('sec-next').hidden = !next.length;
+    $('sec-past').hidden = !past.length;
+    fillPlanGrid($('plans-next'), next);
+    fillPlanGrid($('plans-past'), past);
+  }
+  function fillPlanGrid(el, list) {
+    el.innerHTML = '';
+    list.forEach(p => {
+      const plan = p.plan || {};
+      const card = document.createElement('article');
+      card.className = 'plan' + (p.id === state.id ? ' current' : '');
+      const mins = Number(plan.laenge) || sumRows(plan);
+      card.innerHTML = `
+        <div class="plan-top">
+          <span class="plan-date">${p.datum ? esc(fmtDate(p.datum)) : 'Ohne Datum'}</span>
+          <span class="plan-nr">${p.nr ? 'Nr. ' + esc(p.nr) : ''}</span>
+        </div>
+        <h3 class="${p.thema ? '' : 'none'}">${esc(p.thema || 'Ohne Thema')}</h3>
+        <div class="meta">
+          <span class="pill">${(plan.rows || []).length} Programmpunkte</span>
+          ${mins ? `<span class="pill">${mins} Min.</span>` : ''}
+          ${p.id === state.id ? '<span class="pill">Gerade geöffnet</span>' : ''}
+        </div>
+        <div class="plan-actions">
+          <button type="button" class="btn primary sm grow" data-a="open">Öffnen</button>
+          <button type="button" class="icon-btn" data-a="copy" aria-label="Als Vorlage für eine neue Stunde verwenden" title="Als Vorlage verwenden">${ICON.copy}</button>
+          <button type="button" class="icon-btn" data-a="del" aria-label="Gruppenstunde löschen" title="Löschen">${ICON.del}</button>
+        </div>`;
+      card.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', async () => {
+        const a = b.dataset.a;
+        if (a === 'open') {
+          if (p.id !== state.id) {
+            if (!(await confirmLeaveCurrent())) return;
+            const fresh = await Plans.get(p.id).catch(e => { dbError(e, 'Öffnen'); return null; });
+            if (!fresh) return;
+            loadPlan(Object.assign({}, fresh.plan, { id: fresh.id }));
+            savedAt = fresh.geaendert_am;
+            renderStatus();
+          }
+          showView('planen');
+        }
+        if (a === 'copy') {
+          if (!(await confirmLeaveCurrent())) return;
+          const copy = normalizePlan(JSON.parse(JSON.stringify(plan)));
+          Object.assign(copy, { nr: '', datum: '', gut: '', anders: '', wuensche: '', kinder: '', betreuerAnz: '' });
+          delete copy.id;
+          loadPlan(copy, JSON.stringify(planPayload(blank()).plan));
+          showView('planen');
+          toast('Kopie erstellt. Trag Nr. und Datum ein und tippe auf „Speichern“.');
+        }
+        if (a === 'del') {
+          const name = p.thema || (p.datum ? fmtDate(p.datum) : 'diese Gruppenstunde');
+          if (!confirm(`„${name}“ für alle Betreuer löschen?`)) return;
+          try {
+            await Plans.remove(p.id);
+            plans = plans.filter(x => x.id !== p.id);
+            if (state.id === p.id) { delete state.id; lastSaved = null; persistDraft(); renderStatus(); }
+            renderPlans();
+            toast('Gruppenstunde gelöscht.');
+          } catch (e) { dbError(e, 'Löschen'); }
+        }
+      }));
+      el.appendChild(card);
+    });
+  }
+  async function newPlan() {
+    if (!(await confirmLeaveCurrent())) return;
+    loadPlan(blank());
+    showView('planen');
+  }
+  $('btn-new-plan').addEventListener('click', newPlan);
+  $('btn-new-plan-2').addEventListener('click', newPlan);
+
+  /* ================= PLANEN ================= */
   document.querySelectorAll('[data-k]').forEach(el => {
-    el.addEventListener('input', () => { state[el.dataset.k] = el.value; update(); });
+    el.addEventListener('input', () => { state[el.dataset.k] = el.value; changed(); });
   });
 
-  /* ---------- Ablauf-Zeilen ---------- */
   const rowsEl = $('rows');
   const extrasEl = $('extras');
   function renderRows() {
@@ -424,6 +1026,7 @@
           <span class="row-num">${label} ${i + 1}</span>
           <div class="row-tools">
             ${isExtra ? `<button type="button" class="icon-btn take-btn" data-a="take" aria-label="In den Ablauf übernehmen">${ICON.take}<span>Übernehmen</span></button>` : ''}
+            <button type="button" class="icon-btn" data-a="keep" aria-label="In der Ideen-Sammlung speichern" title="In der Ideen-Sammlung speichern">${ICON.save}</button>
             <button type="button" class="icon-btn" data-a="up" aria-label="Nach oben" ${i === 0 ? 'disabled' : ''}>${ICON.up}</button>
             <button type="button" class="icon-btn" data-a="down" aria-label="Nach unten" ${i === list.length - 1 ? 'disabled' : ''}>${ICON.down}</button>
             <button type="button" class="icon-btn" data-a="del" aria-label="Entfernen">${ICON.del}</button>
@@ -439,40 +1042,48 @@
           <label>Wer<input data-f="wer" value="${esc(r.wer)}"></label>
         </div>`;
       box.querySelectorAll('[data-f]').forEach(inp => {
-        inp.addEventListener('input', () => { r[inp.dataset.f] = inp.value; update(); });
+        inp.addEventListener('input', () => { r[inp.dataset.f] = inp.value; changed(); });
       });
       box.querySelectorAll('[data-a]').forEach(btn => {
         btn.addEventListener('click', () => {
           const a = btn.dataset.a;
+          if (a === 'keep') { saveRowAsIdea(r); return; }
           if (a === 'del') {
             if ((r.titel || r.text) && !confirm('„' + (r.titel || label + ' ' + (i + 1)) + '“ entfernen?')) return;
             list.splice(i, 1);
           }
           if (a === 'up' && i > 0) [list[i - 1], list[i]] = [list[i], list[i - 1]];
           if (a === 'down' && i < list.length - 1) [list[i + 1], list[i]] = [list[i], list[i + 1]];
-          if (a === 'take') {
-            // vor dem Abschluss einfügen, falls es einen gibt – sonst ans Ende
-            const moved = list.splice(i, 1)[0];
-            let at = state.rows.findIndex(x => /abschluss/i.test(x.titel || ''));
-            if (at < 0) at = state.rows.length;
-            state.rows.splice(at, 0, moved);
-          }
-          renderRows(); update();
+          if (a === 'take') insertIntoRows(list.splice(i, 1)[0]);
+          renderRows(); changed();
         });
       });
       listEl.appendChild(box);
     });
   }
+  // vor dem Abschluss einfügen, falls es einen gibt – sonst ans Ende
+  function insertIntoRows(row) {
+    let at = state.rows.findIndex(x => /abschluss/i.test(x.titel || ''));
+    if (at < 0) at = state.rows.length;
+    state.rows.splice(at, 0, row);
+  }
   function addAndFocus(list, listEl) {
     list.push({ dauer: 10, titel: '', text: '', mat: '', wer: '' });
-    renderRows(); update();
+    renderRows(); changed();
     const inputs = listEl.querySelectorAll('[data-f="titel"]');
     inputs[inputs.length - 1].focus();
   }
   $('btn-add-row').addEventListener('click', () => addAndFocus(state.rows, rowsEl));
   $('btn-add-extra').addEventListener('click', () => addAndFocus(state.extras, extrasEl));
+  document.querySelectorAll('[data-pick]').forEach(b => b.addEventListener('click', () => showView('ideen')));
 
-  /* ---------- Farben ---------- */
+  function saveRowAsIdea(r) {
+    if (!(r.titel || '').trim()) { toast('Gib dem Programmpunkt zuerst einen Namen.'); return; }
+    const existing = ideas.find(x => x.titel.toLowerCase() === r.titel.trim().toLowerCase());
+    if (existing) { openIdeaDialog(existing); toast('Diese Idee gibt es schon – du kannst sie hier bearbeiten.'); return; }
+    openIdeaDialog(null, { titel: r.titel, dauer: r.dauer, material: r.mat, text: r.text });
+  }
+
   const sw = $('swatches');
   function renderSwatches() {
     sw.innerHTML = '';
@@ -482,14 +1093,236 @@
       b.style.background = c.hex;
       b.setAttribute('aria-label', c.name);
       b.setAttribute('aria-pressed', String(state.accent === c.hex));
-      b.addEventListener('click', () => { state.accent = c.hex; renderSwatches(); update(); });
+      b.addEventListener('click', () => { state.accent = c.hex; renderSwatches(); changed(); });
       sw.appendChild(b);
     });
   }
 
-  /* ---------- A4-Blatt ---------- */
+  /* ================= IDEEN-SAMMLUNG ================= */
+  const filt = { q: '', cat: '', ort: '', dauer: '' };
+
+  function renderChips() {
+    const el = $('cat-chips');
+    el.innerHTML = '';
+    [{ name: '' }].concat(CATS).forEach(c => {
+      const b = document.createElement('button');
+      b.type = 'button'; b.className = 'chip';
+      b.setAttribute('aria-pressed', String(filt.cat === c.name));
+      b.innerHTML = c.name ? `<span class="dot" style="background:${c.color}"></span>${esc(c.name)}` : 'Alle';
+      b.addEventListener('click', () => { filt.cat = c.name; renderChips(); renderIdeas(); });
+      el.appendChild(b);
+    });
+  }
+
+  async function refreshIdeas() {
+    $('ideas-loading').hidden = ideasLoaded;
+    try {
+      ideas = await Ideas.list();
+      ideasLoaded = true;
+    } catch (e) { dbError(e, 'Laden der Ideen'); }
+    $('ideas-loading').hidden = true;
+    renderIdeas();
+  }
+
+  // Einmalig: Ideen aus der alten Version (nur im Browser gespeichert) bzw. die Beispiele hochladen
+  async function migrateIdeasOnce() {
+    if (lsGet(MIGRATED_FLAG)) return;
+    try {
+      const existing = await Ideas.list();
+      if (existing.length) { lsSet(MIGRATED_FLAG, '1'); return; }
+      let local = null;
+      try { local = JSON.parse(lsGet(OLD_IDEA_STORE)); } catch (e) {}
+      const source = Array.isArray(local) && local.length ? local : SEED_IDEAS;
+      const added = await Ideas.insertMany(source.filter(x => (x.titel || '').trim()));
+      lsSet(MIGRATED_FLAG, '1');
+      if (added.length) toast(`${added.length} Ideen in die Online-Sammlung übernommen.`);
+    } catch (e) { dbError(e, 'Übernehmen der Ideen'); }
+  }
+
+  function filteredIdeas() {
+    const q = filt.q.trim().toLowerCase();
+    return ideas.filter(x => {
+      if (filt.cat && x.kategorie !== filt.cat) return false;
+      if (filt.ort && x.ort !== filt.ort && x.ort !== 'beides') return false;
+      if (filt.dauer && (Number(x.dauer) || 0) > Number(filt.dauer)) return false;
+      if (q && !(x.titel + ' ' + x.text + ' ' + x.material + ' ' + x.kategorie).toLowerCase().includes(q)) return false;
+      return true;
+    });
+  }
+
+  function renderIdeas() {
+    const list = filteredIdeas();
+    const grid = $('idea-grid');
+    grid.innerHTML = '';
+    $('ideas-count').textContent = (ideas.length === 1 ? '1 Idee' : `${ideas.length} Ideen`) + ' für alle Betreuer' + (list.length !== ideas.length ? ` · ${list.length} angezeigt` : '');
+    $('idea-empty').hidden = !ideasLoaded || list.length > 0;
+    list.forEach(x => {
+      const card = document.createElement('article');
+      card.className = 'idea';
+      card.dataset.id = x.id;
+      card.innerHTML = `
+        <div class="idea-top">
+          <span class="cat"><span class="dot" style="background:${catColor(x.kategorie)}"></span>${esc(x.kategorie)}</span>
+          <button type="button" class="icon-btn" data-a="edit" aria-label="„${esc(x.titel)}“ bearbeiten">${ICON.edit}</button>
+        </div>
+        <h3>${esc(x.titel)}</h3>
+        <div class="meta">
+          ${x.dauer !== '' ? `<span class="pill">${esc(x.dauer)} Min.</span>` : ''}
+          <span class="pill">${esc(ORT_LABEL[x.ort])}</span>
+        </div>
+        ${x.text ? `<p class="idea-text">${esc(x.text)}</p>` : ''}
+        ${x.material ? `<p class="idea-mat"><b>Material:</b> ${esc(x.material)}</p>` : ''}
+        <div class="idea-actions">
+          <button type="button" class="btn primary sm grow" data-a="rows">In den Ablauf</button>
+          <button type="button" class="btn sm" data-a="extras">Als Reserve</button>
+        </div>`;
+      card.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => {
+        const a = b.dataset.a;
+        if (a === 'edit') return openIdeaDialog(x);
+        const row = { dauer: x.dauer === '' ? 10 : x.dauer, titel: x.titel, text: x.text, mat: x.material, wer: '' };
+        if (a === 'rows') insertIntoRows(row); else state.extras.push(row);
+        renderRows(); changed();
+        toast(`„${x.titel}“ ${a === 'rows' ? 'ist jetzt im Ablauf' : 'ist jetzt in der Reserve'}.`, 'Zum Plan', () => showView('planen'));
+      }));
+      grid.appendChild(card);
+    });
+  }
+
+  $('idea-search').addEventListener('input', e => { filt.q = e.target.value; renderIdeas(); });
+  $('idea-ort').addEventListener('change', e => { filt.ort = e.target.value; renderIdeas(); });
+  $('idea-dauer').addEventListener('change', e => { filt.dauer = e.target.value; renderIdeas(); });
+
+  $('btn-random').addEventListener('click', () => {
+    const list = filteredIdeas();
+    if (!list.length) { toast('Keine Idee passt zu den Filtern.'); return; }
+    const pick = list[Math.floor(Math.random() * list.length)];
+    const card = document.querySelector(`.idea[data-id="${pick.id}"]`);
+    document.querySelectorAll('.idea.flash').forEach(c => c.classList.remove('flash'));
+    if (card) {
+      card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      card.classList.add('flash');
+      setTimeout(() => card.classList.remove('flash'), 2400);
+    }
+  });
+
+  /* ---------- Dialoge ---------- */
+  const openDlg = d => { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); };
+  const closeDlg = d => { if (d.close) d.close(); else d.removeAttribute('open'); };
+  document.querySelectorAll('dialog [data-close]').forEach(b => b.addEventListener('click', () => closeDlg(b.closest('dialog'))));
+
+  const dlg = $('idea-dialog');
+  let editingId = null;
+  $('f-kategorie').innerHTML = CATS.map(c => `<option>${esc(c.name)}</option>`).join('');
+
+  function openIdeaDialog(idea, prefill) {
+    editingId = idea ? idea.id : null;
+    const v = idea || Object.assign({ titel: '', kategorie: filt.cat || 'Spiele', dauer: 10, ort: 'beides', material: '', text: '' }, prefill || {});
+    $('dlg-title').textContent = idea ? 'Idee bearbeiten' : 'Neue Idee';
+    $('f-titel').value = v.titel;
+    $('f-kategorie').value = v.kategorie;
+    $('f-dauer').value = v.dauer;
+    $('f-ort').value = v.ort || 'beides';
+    $('f-material').value = v.material;
+    $('f-text').value = v.text;
+    $('dlg-delete').hidden = !idea;
+    $('dlg-submit').disabled = false;
+    openDlg(dlg);
+    setTimeout(() => $('f-titel').focus(), 50);
+  }
+  $('idea-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const data = {
+      id: editingId,
+      titel: $('f-titel').value.trim(),
+      kategorie: $('f-kategorie').value,
+      dauer: $('f-dauer').value,
+      ort: $('f-ort').value,
+      material: $('f-material').value.trim(),
+      text: $('f-text').value.trim()
+    };
+    if (!data.titel) { $('f-titel').focus(); return; }
+    $('dlg-submit').disabled = true;
+    try {
+      if (editingId) {
+        const saved = await Ideas.update(data);
+        ideas = ideas.map(x => x.id === saved.id ? saved : x);
+        toast('Idee gespeichert.');
+      } else {
+        const saved = await Ideas.insert(data);
+        ideas.push(saved);
+        ideas.sort((a, b) => a.titel.localeCompare(b.titel, 'de'));
+        toast(`„${saved.titel}“ ist jetzt in der Ideen-Sammlung.`);
+      }
+      renderIdeas(); closeDlg(dlg);
+    } catch (err) { dbError(err, 'Speichern der Idee'); }
+    $('dlg-submit').disabled = false;
+  });
+  $('dlg-delete').addEventListener('click', async () => {
+    const x = ideas.find(y => y.id === editingId);
+    if (!x || !confirm(`„${x.titel}“ für alle Betreuer aus der Sammlung löschen?`)) return;
+    try {
+      await Ideas.remove(editingId);
+      ideas = ideas.filter(y => y.id !== editingId);
+      renderIdeas(); closeDlg(dlg);
+      toast('Idee gelöscht.');
+    } catch (err) { dbError(err, 'Löschen der Idee'); }
+  });
+  $('btn-new-idea').addEventListener('click', () => openIdeaDialog(null));
+
+  /* ---------- Sammlung sichern / importieren ---------- */
+  function download(name, obj) {
+    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  }
+  async function mergeIdeas(incoming) {
+    let added = 0, updated = 0;
+    const fresh = [];
+    for (const n of incoming) {
+      if (!(n.titel || '').trim()) continue;
+      const match = ideas.find(x => x.titel.toLowerCase() === n.titel.trim().toLowerCase());
+      if (match) {
+        if (n === match) continue;
+        await Ideas.update(Object.assign({}, n, { id: match.id }));
+        updated++;
+      } else { fresh.push(n); }
+    }
+    added = (await Ideas.insertMany(fresh)).length;
+    await refreshIdeas();
+    return { added, updated };
+  }
+  $('btn-ideas-export').addEventListener('click', () => download('ideen.json', ideas.map(({ id, ...rest }) => rest)));
+  $('btn-ideas-import').addEventListener('click', () => $('ideas-file').click());
+  $('ideas-file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const data = JSON.parse(await f.text());
+      if (!Array.isArray(data)) throw new Error('Keine Liste');
+      const r = await mergeIdeas(data);
+      toast(`${r.added} neue, ${r.updated} aktualisierte Ideen importiert.`);
+    } catch (err) {
+      if (err instanceof SyntaxError || /Liste/.test(err.message)) toast('Die Datei ist keine gültige Ideen-Sammlung.');
+      else dbError(err, 'Import');
+    }
+    e.target.value = '';
+  });
+  $('btn-ideas-reset').addEventListener('click', async () => {
+    try {
+      const missing = SEED_IDEAS.filter(s => !ideas.some(x => x.titel.toLowerCase() === s.titel.toLowerCase()));
+      const added = await Ideas.insertMany(missing);
+      await refreshIdeas();
+      toast(added.length ? `${added.length} Beispiel-Ideen hinzugefügt.` : 'Alle Beispiel-Ideen sind schon da.');
+    } catch (err) { dbError(err, 'Hinzufügen'); }
+  });
+
+  /* ================= A4-BLATT ================= */
   const lines = n => '<div class="s-lines">' + '<span></span>'.repeat(n) + '</div>';
   const textOr = (v, n) => (v || '').trim() ? `<div class="s-text">${esc(v)}</div>` : lines(n);
+  const lengthMin = () => Number(state.laenge) || 0;
+  const totalMin = () => sumRows(state);
 
   function renderSheet() {
     let clock = state.uhrzeit;
@@ -509,7 +1342,7 @@
     let matHtml = (mats.length ? mats : ['', '', '', '']).map(m => `<div class="s-check"><i></i>${esc(m)}</div>`).join('');
     if (mats.length && mats.length < 5) matHtml += '<div class="s-check"><i></i></div>';
 
-    const extras = (state.extras || []).filter(x => (x.titel || x.text || '').trim());
+    const extras = state.extras.filter(x => (x.titel || x.text || '').trim());
     const extraHtml = extras.length ? `
       <div class="s-extra">
         <div class="s-extra-head"><h3>Evtl. – falls noch Zeit ist</h3><small class="s-lbl">Reserve</small></div>
@@ -570,17 +1403,17 @@
       <div class="s-foot"><span>Kinderfeuerwehr · HLF-Gruppe</span><span>${esc(fmtDate(state.datum))}</span></div>`;
   }
 
-  /* ---------- Vorschau an Bildschirmbreite anpassen ---------- */
   const frame = $('frame'), scale = $('scale');
   function fit() {
-    if ($('view-preview').hidden) return;
+    if ($('view-vorschau').hidden) return;
     const s = Math.min(1, frame.clientWidth / 794);
     scale.style.transform = `scale(${s})`;
     frame.style.height = Math.ceil(scale.offsetHeight * s) + 'px';
   }
   window.addEventListener('resize', fit);
 
-  function update() {
+  /* ---------- Zeitrechner + Änderungen ---------- */
+  function renderTotals() {
     document.documentElement.style.setProperty('--accent', state.accent);
     const t = totalMin();
     const L = lengthMin();
@@ -609,10 +1442,19 @@
     bt.innerHTML = L
       ? `${t} von ${L} Min. · <b>${rest < 0 ? -rest + ' Min. zu viel' : rest + ' Min. frei'}</b>`
       : `${state.rows.length} Programmpunkte · ${t} Min.`;
-    persist();
+  }
+  function changed() {
+    renderTotals();
+    persistDraft();
+    scheduleSave();
+    renderStatus();
+  }
+  function loadIntoForm() {
+    document.querySelectorAll('[data-k]').forEach(el => { el.value = state[el.dataset.k] ?? ''; });
+    renderRows(); renderSwatches(); renderTotals(); renderStatus();
   }
 
-  /* ---------- Datei-Aktionen ---------- */
+  /* ---------- PDF ---------- */
   $('btn-pdf').addEventListener('click', () => {
     renderSheet();
     const old = document.title;
@@ -620,37 +1462,98 @@
     window.print();
     setTimeout(() => { document.title = old; }, 500);
   });
-  $('btn-new').addEventListener('click', () => {
-    if (!confirm('Neuen leeren Plan beginnen? Nicht gespeicherte Eingaben gehen verloren.')) return;
-    state = blank(); loadIntoForm();
-  });
-  $('btn-save').addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = 'gruppenstunde' + (state.nr ? '-' + state.nr : '') + (state.datum ? '-' + state.datum : '') + '.json';
-    document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-  });
-  const fileIn = $('file-load');
-  $('btn-load').addEventListener('click', () => fileIn.click());
-  fileIn.addEventListener('change', async () => {
-    const f = fileIn.files[0]; if (!f) return;
-    try { state = Object.assign(blank(), JSON.parse(await f.text())); loadIntoForm(); }
-    catch (e) { alert('Die Datei konnte nicht gelesen werden.'); }
-    fileIn.value = '';
-  });
-
-  function loadIntoForm() {
-    document.querySelectorAll('[data-k]').forEach(el => { el.value = state[el.dataset.k] ?? ''; });
-    renderRows(); renderSwatches(); update();
-  }
-
   window.addEventListener('beforeprint', () => { renderSheet(); });
   if (document.fonts) document.fonts.ready.then(fit);
 
-  loadIntoForm();
-  showView(location.hash === '#vorschau' ? 'vorschau' : 'planen');
+  /* ================= ANMELDUNG ================= */
+  function showLogin(msg) {
+    $('app').hidden = true;
+    $('login').hidden = false;
+    $('login-err').hidden = !msg;
+    $('login-err').textContent = msg || '';
+    $('login-btn').disabled = !db;
+  }
+  $('login-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    $('login-btn').disabled = true;
+    $('login-err').hidden = true;
+    const { data, error } = await db.auth.signInWithPassword({
+      email: $('login-email').value.trim(),
+      password: $('login-pw').value
+    });
+    $('login-btn').disabled = false;
+    if (error) {
+      const m = /invalid login|credentials/i.test(error.message) ? 'E-Mail oder Passwort ist falsch.'
+        : /fetch|network/i.test(error.message) ? 'Keine Verbindung zur Datenbank. Ist das Supabase-Projekt pausiert?'
+        : error.message;
+      showLogin(m);
+      return;
+    }
+    $('login-pw').value = '';
+    startApp(data.user);
+  });
+
+  $('btn-logout').addEventListener('click', async () => {
+    if (state.id && isDirty()) await saveNow();
+    await db.auth.signOut();
+    lsDel(DRAFT_STORE);
+    state = normalizePlan(null); lastSaved = null; plans = []; ideas = []; ideasLoaded = false;
+    showLogin();
+  });
+
+  const pwDlg = $('pw-dialog');
+  $('btn-pw').addEventListener('click', () => { $('pw-form').reset(); $('pw-err').hidden = true; openDlg(pwDlg); });
+  $('pw-form').addEventListener('submit', async e => {
+    e.preventDefault();
+    const p1 = $('pw-1').value, p2 = $('pw-2').value;
+    const err = m => { $('pw-err').textContent = m; $('pw-err').hidden = false; };
+    if (p1.length < 8) return err('Das Passwort braucht mindestens 8 Zeichen.');
+    if (p1 !== p2) return err('Die beiden Passwörter stimmen nicht überein.');
+    const { error } = await db.auth.updateUser({ password: p1 });
+    if (error) return err(/different|same/i.test(error.message) ? 'Das neue Passwort muss sich vom alten unterscheiden.' : error.message);
+    closeDlg(pwDlg);
+    toast('Passwort geändert.');
+  });
+
+  let started = false;
+  async function startApp(user) {
+    $('login').hidden = true;
+    $('app').hidden = false;
+    $('user-email').textContent = user.email || '';
+    if (!started) { started = true; renderChips(); }
+
+    // Entwurf auf diesem Gerät wiederherstellen
+    let draft = null;
+    try { draft = JSON.parse(lsGet(DRAFT_STORE)); } catch (e) {}
+    if (draft && draft.id) {
+      // gespeicherte Stunde: aktuellen Stand aus der Datenbank holen
+      const fresh = await Plans.get(draft.id).catch(e => { dbError(e, 'Laden'); return undefined; });
+      if (fresh) { loadPlan(Object.assign({}, fresh.plan, { id: fresh.id })); savedAt = fresh.geaendert_am; }
+      else if (fresh === null) { delete draft.id; loadPlan(draft, null); }   // inzwischen gelöscht
+      else loadPlan(draft);                                                   // offline: lokalen Stand nehmen
+    } else {
+      loadPlan(draft || blank(), JSON.stringify(planPayload(blank()).plan));
+    }
+
+    await migrateIdeasOnce();
+    refreshIdeas();
+    showView((location.hash || '#uebersicht').slice(1));
+  }
+
+  async function boot() {
+    if (!window.supabase || !window.supabase.createClient) {
+      showLogin('Die Verbindung zur Datenbank konnte nicht geladen werden. Bitte Internetverbindung prüfen und die Seite neu laden.');
+      return;
+    }
+    db = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    db.auth.onAuthStateChange((event) => {
+      if (event === 'SIGNED_OUT' && started) showLogin('Du wurdest abgemeldet. Bitte neu anmelden.');
+    });
+    const { data } = await db.auth.getSession();
+    if (data && data.session) startApp(data.session.user);
+    else showLogin();
+  }
+  boot();
 })();
 </script>
 </body>
